@@ -49,5 +49,5 @@ SERVER_MEMORY = "4G" # Change to "8G" etc.
 
 ## Versioning
 
-Current Version: 1.0
+Current Version: 1.2
 See `version.py` for the tracked version number.
