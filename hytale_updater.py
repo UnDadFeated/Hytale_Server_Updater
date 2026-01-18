@@ -174,6 +174,13 @@ def stop_server():
         except Exception as e:
             log(f"Error checking/stopping server: {e}")
 
+def countdown(seconds, message="Continuing in"):
+    """Displays a countdown timer on the same line."""
+    for i in range(seconds, 0, -1):
+        print(f"\r{message} {i}s...", end="")
+        time.sleep(1)
+    print("\r" + " " * (len(message) + 10) + "\r", end="") # Clear line
+
 def update_server():
     """Runs the Hytale update command."""
     updater_cmd = ensure_updater()
@@ -184,15 +191,25 @@ def update_server():
     log("Checking for updates (Running Hytale Downloader)...")
     
     try:
-        cmd = updater_cmd 
+        # Run the downloader. We let stdout/stderr flow to the console so the user sees real-time progress.
+        # Arguments: None required for default "Download latest release" behavior as per docs.
+        cmd = updater_cmd
         
         log(f"Executing: {' '.join(cmd)}")
+        log("--- Hytale Downloader Output Start ---")
         process = subprocess.run(cmd, text=True)
+        log("--- Hytale Downloader Output End ---")
         
         if process.returncode == 0:
-            log("Update process completed.")
+            log("Update process completed successfully.")
         else:
             log("Update process reported an issue (non-zero exit code).")
+            
+        # Pause so user can read the output
+        print() # Newline
+        log("Review the above output for update status.")
+        countdown(10, "Starting server in")
+        print() # Newline
 
     except Exception as e:
         log(f"Failed to execute update: {e}")
