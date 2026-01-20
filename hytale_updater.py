@@ -10,6 +10,7 @@ import threading
 import queue
 import platform
 import re
+import signal
 
 import version
 
@@ -160,12 +161,25 @@ class HytaleUpdaterCore:
 
         self.log("Running Hytale Downloader...")
         try:
-            process = subprocess.Popen(updater_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            stdout, stderr = process.communicate()
-            if stdout: self.log(stdout)
-            if stderr: self.log(stderr, "stderr")
+            # Use Popen with streaming stdout
+            process = subprocess.Popen(
+                updater_cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.STDOUT, # Merge stderr into stdout
+                text=True,
+                bufsize=1,
+                universal_newlines=True
+            )
             
-            if process.returncode == 0:
+            # Read line by line
+            for line in iter(process.stdout.readline, ''):
+                if line:
+                    self.log(line.strip())
+            
+            process.stdout.close()
+            return_code = process.wait()
+            
+            if return_code == 0:
                 self.log("Update process completed successfully.")
                 # Clear AOT cache on successful update to prevent version mismatch errors
                 if os.path.exists(AOT_FILE):
@@ -175,7 +189,7 @@ class HytaleUpdaterCore:
                      except Exception as e:
                          self.log(f"Warning: Failed to remove AOT cache: {e}")
             else:
-                self.log("Update process reported an issue.")
+                self.log(f"Update process reported an issue (Exit Code: {return_code}).")
         except Exception as e:
             self.log(f"Failed to execute update: {e}")
 
@@ -282,6 +296,7 @@ def run_gui_mode():
             self.enable_logging_var = tk.BooleanVar(value=True)
             self.check_updates_var = tk.BooleanVar(value=True)
             self.is_server_running = False
+            self.server_process = None
             
             self.create_widgets()
             self.setup_tags()
@@ -309,7 +324,7 @@ def run_gui_mode():
             self.chk_updates.pack(side=tk.LEFT, padx=5)
 
             # Theme Toggle
-            self.theme_btn = ttk.Button(control_frame, text="☀/🌙 Theme", command=self.toggle_theme, width=10)
+            self.theme_btn = ttk.Button(control_frame, text="☀/🌙", command=self.toggle_theme, width=10)
             self.theme_btn.pack(side=tk.LEFT, padx=15)
 
             # Action Buttons
@@ -466,10 +481,15 @@ def run_gui_mode():
                 if IS_WINDOWS:
                     startupinfo = subprocess.STARTUPINFO()
                     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                    # valid for Windows, needed for CTRL_C_EVENT
+                    creation_flags = subprocess.CREATE_NEW_PROCESS_GROUP
+                else:
+                    creation_flags = 0
                 
                 self.server_process = subprocess.Popen(
                     cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
-                    text=True, bufsize=1, universal_newlines=True, startupinfo=startupinfo
+                    text=True, bufsize=1, universal_newlines=True, startupinfo=startupinfo,
+                    creationflags=creation_flags
                 )
                 self.is_server_running = True
                 
@@ -494,8 +514,16 @@ def run_gui_mode():
 
         def stop_server_handler(self):
             if self.server_process and self.is_server_running:
-                self.core.log("Stopping server...")
-                self.server_process.terminate()
+                self.core.log("Stopping server (sending Ctrl-C)...")
+                try:
+                    if IS_WINDOWS:
+                        os.kill(self.server_process.pid, signal.CTRL_C_EVENT)
+                    else:
+                        self.server_process.send_signal(signal.SIGINT)
+                except Exception as e:
+                     self.core.log(f"Error stopping server: {e}")
+                     # Force kill if graceful fails?
+                     # self.server_process.terminate()
             else:
                 self.core.log("No server process managed by this tool is running.")
 
