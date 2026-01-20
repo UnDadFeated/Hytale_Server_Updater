@@ -88,7 +88,15 @@ class HytaleUpdaterCore:
 
         self.log(f"Downloading updater from {UPDATER_ZIP_URL}...")
         try:
-            urllib.request.urlretrieve(UPDATER_ZIP_URL, UPDATER_ZIP_FILE)
+            # Fix for HTTP 403: Add User-Agent header
+            req = urllib.request.Request(
+                UPDATER_ZIP_URL, 
+                headers={'User-Agent': 'Mozilla/5.0'}
+            )
+            with urllib.request.urlopen(req) as response:
+                with open(UPDATER_ZIP_FILE, "wb") as f:
+                    f.write(response.read())
+
             self.log("Download complete. Extracting...")
             with zipfile.ZipFile(UPDATER_ZIP_FILE, 'r') as zip_ref:
                 zip_ref.extractall(".")
@@ -158,6 +166,13 @@ class HytaleUpdaterCore:
             
             if process.returncode == 0:
                 self.log("Update process completed successfully.")
+                # Clear AOT cache on successful update to prevent version mismatch errors
+                if os.path.exists(AOT_FILE):
+                     self.log(f"Removing outdated AOT cache: {AOT_FILE}")
+                     try:
+                         os.remove(AOT_FILE)
+                     except Exception as e:
+                         self.log(f"Warning: Failed to remove AOT cache: {e}")
             else:
                 self.log("Update process reported an issue.")
         except Exception as e:
