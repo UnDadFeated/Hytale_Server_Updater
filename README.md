@@ -11,6 +11,7 @@ A Python automation script for managing Dedicated Hytale Servers.
 *   **Platform Checks**: Verifies Java 25 installation.
 *   **Asset Management**: Checks for `Assets.zip` and prompts to locate/copy it if missing.
 *   **Auto-Updater**: Automatically downloads the Hytale Downloader CLI and updates server files.
+*   **Smart Updates**: Checks the remote server version before downloading to save bandwidth and time.
 *   **Auto-Restart**: Stops running server instances and restarts them after updates.
 *   **Optimization**: Detects `HytaleServer.aot` to enable Ahead-Of-Time cache for faster startup.
 
@@ -54,5 +55,5 @@ SERVER_MEMORY = "4G" # Change to "8G" etc.
 
 ## Versioning
 
-Current Version: 1.5
+Current Version: 1.6.0
 See `version.py` for the tracked version number.

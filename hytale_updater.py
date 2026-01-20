@@ -8,9 +8,11 @@ import urllib.request
 import zipfile
 import threading
 import queue
+import platform
 import re
 import signal
 import json
+import traceback
 
 import version
 
@@ -29,6 +31,22 @@ LOG_FILE = "hytale_updater.log"
 CONFIG_FILE = "hytale_updater_config.json"
 
 # --- Core Logic ---
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading config: {e}")
+    return {}
+
+def save_config(config):
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(config, f, indent=4)
+    except Exception as e:
+        print(f"Error saving config: {e}")
+
 class HytaleUpdaterCore:
     def __init__(self, log_callback, input_callback=None):
         self.log_callback = log_callback
@@ -155,11 +173,35 @@ class HytaleUpdaterCore:
              except Exception as e:
                 self.log(f"Error checking/stopping server: {e}")
 
-    def update_server(self):
+    def get_remote_server_version(self, updater_cmd):
+        try:
+            cmd = updater_cmd + ["-print-version"]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0:
+                return result.stdout.strip()
+            return None
+        except Exception:
+            return None
+
+    def update_server(self, config, save_config_func):
         updater_cmd = self.ensure_updater()
         if not updater_cmd:
             self.log("Cannot run update, updater not available.")
             return
+
+        self.log("Checking for server updates...")
+        remote_version = self.get_remote_server_version(updater_cmd)
+        local_version = config.get("last_server_version")
+
+        if remote_version:
+            self.log(f"Remote version: {remote_version}")
+            if remote_version == local_version:
+                self.log(f"Server is up to date (Version {local_version}). Skipping download.")
+                return
+            else:
+                self.log(f"New version available (Old: {local_version}, New: {remote_version}). Downloading...")
+        else:
+            self.log("Could not determine remote version. forcing update check...")
 
         self.log("Running Hytale Downloader...")
         try:
@@ -183,6 +225,13 @@ class HytaleUpdaterCore:
             
             if return_code == 0:
                 self.log("Update process completed successfully.")
+                
+                # Update config with new version
+                if remote_version:
+                    config["last_server_version"] = remote_version
+                    save_config_func(config)
+                    self.log(f"Updated local version record to {remote_version}")
+
                 # Clear AOT cache on successful update to prevent version mismatch errors
                 if os.path.exists(AOT_FILE):
                      self.log(f"Removing outdated AOT cache: {AOT_FILE}")
@@ -205,6 +254,8 @@ def run_console_mode():
 
     def console_input(prompt):
         return input(prompt).strip('"')
+    
+    config = load_config()
 
     core = HytaleUpdaterCore(console_logger, console_input)
     core.log(f"--- Hytale Server Updater v{version.__version__} (Console Mode) ---")
@@ -217,7 +268,7 @@ def run_console_mode():
     if not assets_path: return
 
     core.stop_existing_server_process()
-    core.update_server()
+    core.update_server(config, save_config)
     
     core.log("Starting Hytale server...")
     if not os.path.exists(SERVER_JAR):
@@ -236,37 +287,23 @@ def run_console_mode():
         core.log(f"Failed to start server: {e}")
 
 def main():
-    if "-nogui" in sys.argv:
-        run_console_mode()
-    else:
-        try:
-            import tkinter as tk
-            from tkinter import scrolledtext, messagebox, ttk
-            from tkinter import filedialog
-        except ImportError:
-            print("Error: Tkinter not found. Please install it or run with -nogui.")
-            return
+    try:
+        if "-nogui" in sys.argv:
+            run_console_mode()
+        else:
+            try:
+                import tkinter as tk
+                from tkinter import scrolledtext, messagebox, ttk
+                from tkinter import filedialog
+            except ImportError:
+                print("Error: Tkinter not found. Please install it or run with -nogui.")
+                return
 
-        global HytaleUpdaterApp # make it available if we keep the class definition global? 
-        # Actually, the class definition uses `tk` etc. so it will fail at parse time if those are missing globally usually in some languages, but in Python specific execution flow matters.
-        # BUT, if the class definition lines 166+ use `tk.BooleanVar` as default values or in method bodies, we need those names defined.
-        # We can move the class definition INSIDE a function or just ensure imports are top level but wrapped?
-        # Python executes top to bottom. If `HytaleUpdaterApp` class is defined at top level, it executes the class body.
-        # If `tk` is not defined, it will error at `self.enable_logging_var = tk.BooleanVar(value=True)` inside `__init__`.
-        # `__init__` is only called when instantiated.
-        # However, decorators or inheritance would fail immediately.
-        # Logic: We should import `tk` globally but wrapped in try/except or just assume if user runs without -nogui they have it.
-        # BUT the issue is: If I run `-nogui`, I don't want to require tk.
-        # If I keep imports at top, script fails on headless.
-        # If I remove imports from top, the class definition `class HytaleUpdaterApp` might fail if I use `ttk.Frame` in signature? No, I use it in body.
-        # Wait, I use `ttk.Frame` inside `create_widgets`.
-        # I use `tk.BooleanVar` inside `__init__`.
-        # So as long as I don't instantiate `HytaleUpdaterApp`, I might be safe IF the names are resolved at runtime.
-        # BUT... I need the modules imported for the names to exist when `__init__` runs.
-        # So, I should import them inside `main`'s `else` logic, AND `HytaleUpdaterApp` needs to access them.
-        # So I should make them global there, or import them inside `HytaleUpdaterApp` methods?
-        # Cleaner: Move `HytaleUpdaterApp` class definition INSIDE a `run_gui_mode` function.
-        run_gui_mode()
+            global HytaleUpdaterApp 
+            run_gui_mode()
+    except Exception:
+        traceback.print_exc()
+        input("Press Enter to exit...")
 
 def run_gui_mode():
     import tkinter as tk
@@ -295,7 +332,7 @@ def run_gui_mode():
             self.is_dark_mode = True 
             
             # Load Config
-            self.config = self.load_config()
+            self.config = load_config()
             self.is_dark_mode = self.config.get("dark_mode", True)
             self.colors = self.dark_theme if self.is_dark_mode else self.light_theme
 
@@ -327,13 +364,13 @@ def run_gui_mode():
             control_frame.pack(fill=tk.X)
             
             # Checkboxes
-            self.chk_logging = ttk.Checkbutton(control_frame, text="Enable File Logging", variable=self.enable_logging_var, command=self.save_config)
+            self.chk_logging = ttk.Checkbutton(control_frame, text="Enable File Logging", variable=self.enable_logging_var, command=self.save_settings)
             self.chk_logging.pack(side=tk.LEFT, padx=5)
             
-            self.chk_updates = ttk.Checkbutton(control_frame, text="Check for Updates", variable=self.check_updates_var, command=self.save_config)
+            self.chk_updates = ttk.Checkbutton(control_frame, text="Check for Updates", variable=self.check_updates_var, command=self.save_settings)
             self.chk_updates.pack(side=tk.LEFT, padx=5)
 
-            self.chk_autostart = ttk.Checkbutton(control_frame, text="Auto-Start Server", variable=self.auto_start_var, command=self.save_config)
+            self.chk_autostart = ttk.Checkbutton(control_frame, text="Auto-Start Server", variable=self.auto_start_var, command=self.save_settings)
             self.chk_autostart.pack(side=tk.LEFT, padx=5)
 
             # Theme Toggle
@@ -374,7 +411,7 @@ def run_gui_mode():
             self.is_dark_mode = not self.is_dark_mode
             self.colors = self.dark_theme if self.is_dark_mode else self.light_theme
             self.apply_theme()
-            self.save_config()
+            self.save_settings()
 
         def apply_theme(self):
             bg = self.colors["bg"]
@@ -463,7 +500,7 @@ def run_gui_mode():
             self.core.stop_existing_server_process()
 
             if self.check_updates_var.get():
-                self.core.update_server()
+                self.core.update_server(self.config, save_config)
             else:
                 self.core.log("Skipping update check per user request.")
 
@@ -501,7 +538,7 @@ def run_gui_mode():
                     creation_flags = 0
                 
                 self.server_process = subprocess.Popen(
-                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
                     text=True, bufsize=1, universal_newlines=True, startupinfo=startupinfo,
                     creationflags=creation_flags
                 )
@@ -528,40 +565,31 @@ def run_gui_mode():
 
         def stop_server_handler(self):
             if self.server_process and self.is_server_running:
-                self.core.log("Stopping server (sending Ctrl-C)...")
+                self.core.log("Stopping server (sending 'stop' command)...")
                 try:
-                    if IS_WINDOWS:
-                        os.kill(self.server_process.pid, signal.CTRL_C_EVENT)
-                    else:
-                        self.server_process.send_signal(signal.SIGINT)
+                    # Write 'stop' to stdin
+                    self.server_process.stdin.write("stop\n")
+                    self.server_process.stdin.flush()
                 except Exception as e:
-                     self.core.log(f"Error stopping server: {e}")
-                     # Force kill if graceful fails?
-                     # self.server_process.terminate()
+                     self.core.log(f"Error sending stop command: {e}")
+                     # Fallback to signal if pipe fails
+                     try:
+                        if IS_WINDOWS:
+                            os.kill(self.server_process.pid, signal.CTRL_C_EVENT)
+                        else:
+                            self.server_process.send_signal(signal.SIGINT)
+                     except Exception as ex:
+                         self.core.log(f"Fallback signal failed: {ex}")
             else:
                 self.core.log("No server process managed by this tool is running.")
 
-        def load_config(self):
-            if os.path.exists(CONFIG_FILE):
-                try:
-                    with open(CONFIG_FILE, "r") as f:
-                        return json.load(f)
-                except Exception as e:
-                    print(f"Error loading config: {e}")
-            return {}
-
-        def save_config(self):
-            config = {
-                "dark_mode": self.is_dark_mode,
-                "enable_logging": self.enable_logging_var.get(),
-                "check_updates": self.check_updates_var.get(),
-                "auto_start": self.auto_start_var.get()
-            }
-            try:
-                with open(CONFIG_FILE, "w") as f:
-                    json.dump(config, f, indent=4)
-            except Exception as e:
-                print(f"Error saving config: {e}")
+        def save_settings(self):
+            # Updates the config dictionary with current UI state and saves it.
+            self.config["dark_mode"] = self.is_dark_mode
+            self.config["enable_logging"] = self.enable_logging_var.get()
+            self.config["check_updates"] = self.check_updates_var.get()
+            self.config["auto_start"] = self.auto_start_var.get()
+            save_config(self.config)
 
         def reset_ui_state(self):
             self.root.after(0, lambda: self.start_button.config(state=tk.NORMAL))
