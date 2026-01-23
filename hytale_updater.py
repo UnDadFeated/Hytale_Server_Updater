@@ -541,7 +541,7 @@ def run_gui_mode():
             
             # 3. Console
             # 3. Console
-            self.console = scrolledtext.ScrolledText(self.root, font=("Consolas", 8), state=tk.DISABLED)
+            self.console = scrolledtext.ScrolledText(self.root, font=("Consolas", 7), state=tk.DISABLED)
             self.console.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
             self.console.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
             self.setup_tags()

@@ -23,7 +23,7 @@ A Python automation script for managing Dedicated Hytale Servers.
 *   **Python 3.x**:
     *   **Windows**: [Download from Python.org](https://www.python.org/downloads/windows/) (Ensure "Add Python to PATH" is checked)
     *   **Linux**: Usually pre-installed. (`sudo apt install python3 python3-tk` might be needed for GUI).
-    *   **Linux**: Usually pre-installed. (`sudo apt install python3 python3-tk` might be needed for GUI).
+
 *   **Java 25**: [Download from Adoptium](https://adoptium.net/temurin/releases/?version=25)
 *   **Internet Connection**: Required for downloading updates and Discord webhooks.
 
@@ -65,5 +65,5 @@ Settings are saved to `hytale_updater_config.json`. Key features:
 
 ## Versioning
 
-Current Version: 1.7.6
+Current Version: 1.7.7
 See `version.py` for the tracked version number.
