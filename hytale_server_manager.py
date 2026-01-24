@@ -45,7 +45,8 @@ def load_config():
         "restart_interval": 12,
         "server_memory": "8G",
         "max_backups": 3,
-        "prevent_updates": False
+        "prevent_updates": False,
+        "manager_auto_update": True
     }
     if os.path.exists(CONFIG_FILE):
         try:
@@ -242,7 +243,11 @@ class HytaleUpdaterCore:
 
     def check_self_update(self):
         """Checks for updates to the manager script from git master branch."""
-        if not self.config.get("check_updates", True):
+        if not self.config.get("manager_auto_update", True):
+             return
+
+        if not os.path.exists(".git"):
+            self.log("Not a git repository. Skipping self-update check.")
             return
 
         self.log("Checking for manager updates (git master)...")
@@ -264,6 +269,8 @@ class HytaleUpdaterCore:
                 os.execl(python, python, *sys.argv)
             else:
                 self.log("Manager is up to date.")
+        except subprocess.CalledProcessError as e:
+             self.log(f"Git check failed (Code {e.returncode}). Skipping manager update.")
         except Exception as e:
             self.log(f"Failed to check/update manager: {e}")
 
@@ -626,7 +633,7 @@ def run_gui_mode():
                 self.root.after(1000, self.start_server)
 
         def setup_ui(self):
-            header = ttk.Frame(self.root, padding="10")
+            header = ttk.Frame(self.root, padding="5")
             header.pack(fill=tk.X)
             
             title = ttk.Label(header, text=f"Hytale Server Manager v{version.__version__}", font=("Segoe UI", 16, "bold"))
@@ -635,8 +642,8 @@ def run_gui_mode():
             desc = ttk.Label(header, text=" | Comprehensive Server Management Tool", font=("Segoe UI", 10))
             desc.pack(side=tk.LEFT, padx=10, pady=(4,0))
             
-            controls_frame = ttk.LabelFrame(self.root, text="Controls & Configuration", padding="10")
-            controls_frame.pack(fill=tk.X, padx=10, pady=5)
+            controls_frame = ttk.LabelFrame(self.root, text="Controls & Configuration", padding="5")
+            controls_frame.pack(fill=tk.X, padx=10, pady=2)
             
             left_container = ttk.Frame(controls_frame)
             left_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -694,10 +701,10 @@ def run_gui_mode():
                     messagebox.showerror("Error", f"Could not open directory: {e}")
 
             qa_buttons_frame = ttk.Frame(c_col3)
-            qa_buttons_frame.grid(row=0, column=0, sticky="n", padx=(0, 10), pady=2)
+            qa_buttons_frame.grid(row=0, column=0, sticky="n", padx=(0, 10), pady=0)
             
             action_buttons_frame = ttk.Frame(c_col3)
-            action_buttons_frame.grid(row=0, column=1, sticky="n", pady=2)
+            action_buttons_frame.grid(row=0, column=1, sticky="n", pady=0)
 
             ttk.Button(qa_buttons_frame, text="Server", width=10, command=lambda: open_dir(".")).pack(fill=tk.X, pady=1)
             ttk.Button(qa_buttons_frame, text="Worlds", width=10, command=lambda: open_dir(WORLD_DIR)).pack(fill=tk.X, pady=1)
@@ -709,13 +716,13 @@ def run_gui_mode():
             self.btn_stop.pack(pady=1)
 
             self.lbl_status = ttk.Label(c_col3, textvariable=self.status_var, font=("Consolas", 9))
-            self.lbl_status.grid(row=1, column=0, pady=5)
+            self.lbl_status.grid(row=1, column=0, pady=2)
             
             self.lbl_uptime = ttk.Label(c_col3, textvariable=self.uptime_var, font=("Consolas", 9))
-            self.lbl_uptime.grid(row=1, column=1, pady=5)
+            self.lbl_uptime.grid(row=1, column=1, pady=2)
             
             self.console = scrolledtext.ScrolledText(self.root, font=("Consolas", -10), state=tk.DISABLED)
-            self.console.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 0))
+            self.console.pack(fill=tk.BOTH, expand=True, padx=10, pady=(2, 0))
             self.setup_tags()
 
             input_frame = ttk.Frame(self.root)
@@ -731,6 +738,9 @@ def run_gui_mode():
             
             theme_btn = ttk.Button(footer, text="Toggle Theme", command=self.toggle_theme)
             theme_btn.pack(side=tk.LEFT)
+            
+            self.var_mgr_update = tk.BooleanVar(value=self.config.get("manager_auto_update", True))
+            ttk.Checkbutton(footer, text="Auto-Update Manager", variable=self.var_mgr_update, command=self.save).pack(side=tk.LEFT, padx=10)
             
             donate_frame = ttk.Frame(footer)
             donate_frame.pack(side=tk.RIGHT)
@@ -782,7 +792,8 @@ def run_gui_mode():
                 "server_memory": self.var_memory.get(),
                 "server_memory": self.var_memory.get(),
                 "max_backups": int(self.var_max_backups.get()) if self.var_max_backups.get().isdigit() else 3,
-                "prevent_updates": self.var_prevent_updates.get()
+                "prevent_updates": self.var_prevent_updates.get(),
+                "manager_auto_update": self.var_mgr_update.get()
             })
             self.core.config = self.config
             save_config(self.config)
