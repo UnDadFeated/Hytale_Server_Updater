@@ -6,6 +6,7 @@ A Python automation script for managing Dedicated Hytale Servers.
 
 *   **GUI & Console Modes**: 
     *   **GUI**: Modern Single-Page interface with **Dark/Light Mode Themes**, logging toggles, and direct control.
+    *   **Quick Access**: Open Server, World, and Backup folders directly from the GUI.
     *   **Console**: Headless mode (`-nogui`) for automated environments. Supports all robust features (Backups, Webhooks, Restarts).
 *   **Robustness**:
     *   **World Backups**: Automatically Zips the `world` folder before server start (keeps last 5).
@@ -40,6 +41,7 @@ Run the script without arguments to open the GUI:
 python hytale_updater.py
 ```
 *   **Controls**: Toggle Backups, Discord Webhooks, and Auto-Restart directly from the UI.
+*   **Quick Access**: Use buttons to instantly open the Server, World, or Backups folder.
 *   **Monitoring**: View Server Uptime.
 
 ### Console Mode (Headless)
@@ -48,6 +50,12 @@ Run with the `-nogui` argument for CLI-only operation:
 python hytale_updater.py -nogui
 ```
 *   Configuration is loaded from `hytale_updater_config.json`. Run GUI once to generate it comfortably, or edit manually.
+
+### Help
+View all command line arguments:
+```bash
+python hytale_updater.py -help
+```
 
 ## Configuration
 
@@ -65,5 +73,5 @@ Settings are saved to `hytale_updater_config.json`. Key features:
 
 ## Versioning
 
-Current Version: 1.7.7
+Current Version: 1.8.0
 See `version.py` for the tracked version number.

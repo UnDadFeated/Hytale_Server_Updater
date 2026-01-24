@@ -538,10 +538,22 @@ def run_gui_mode():
 
             self.lbl_stats = ttk.Label(c_col3, textvariable=self.stats_var, font=("Consolas", 9))
             self.lbl_stats.pack(pady=5)
+
+            # Quick Access
+            ttk.Separator(c_col3, orient='horizontal').pack(fill='x', pady=5)
+            ttk.Label(c_col3, text="Quick Access:", font=("Segoe UI", 8, "bold")).pack(anchor="w")
+            
+            btn_frame = ttk.Frame(c_col3)
+            btn_frame.pack(fill=tk.X)
+            
+            ttk.Button(btn_frame, text="📂 Server", command=lambda: self.open_folder("."), width=8).pack(side=tk.LEFT, padx=1)
+            ttk.Button(btn_frame, text="📂 World", command=lambda: self.open_folder(WORLD_DIR), width=8).pack(side=tk.LEFT, padx=1)
+            ttk.Button(btn_frame, text="📂 Backup", command=lambda: self.open_folder(BACKUP_DIR), width=8).pack(side=tk.LEFT, padx=1)
             
             # 3. Console
             # 3. Console
-            self.console = scrolledtext.ScrolledText(self.root, font=("Consolas", 7), state=tk.DISABLED)
+            # 3. Console
+            self.console = scrolledtext.ScrolledText(self.root, font=("Consolas", 8), state=tk.DISABLED)
             self.console.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
             self.console.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
             self.setup_tags()
@@ -672,6 +684,25 @@ def run_gui_mode():
             self.root.configure(bg=bg)
             self.console.config(bg=txt_bg, fg=txt_fg, insertbackground=fg)
 
+        def open_folder(self, path):
+             path = os.path.abspath(path)
+             if not os.path.exists(path):
+                 try:
+                     os.makedirs(path)
+                 except: pass 
+             
+             try:
+                 if IS_WINDOWS:
+                     os.startfile(path)
+                 else:
+                     if platform.system() == "Darwin":
+                         subprocess.Popen(["open", path])
+                     else:
+                         subprocess.Popen(["xdg-open", path])
+             except Exception as e:
+                 print(f"Error opening folder: {e}")
+                 messagebox.showerror("Error", f"Could not open folder:\n{path}\n\n{e}")
+
         def toggle_theme(self):
             self.is_dark = not self.is_dark
             self.config["dark_mode"] = self.is_dark
@@ -682,7 +713,24 @@ def run_gui_mode():
     app = HytaleGUI(root)
     root.mainloop()
 
+def print_help():
+    print(f"Hytale Server Updater v{version.__version__}")
+    print("--------------------------------------------------")
+    print("Usage: python hytale_updater.py [options]")
+    print("\nOptions:")
+    print("  -nogui       : Run in console-only mode (headless).")
+    print("  -help, --help: Show this help message.")
+    print("\nDescription:")
+    print("  Manages the Hytale Dedicated Server, including auto-updates,")
+    print("  backups, crash detection, and discord notifications.")
+    print("\nConfiguration:")
+    print(f"  stored in {CONFIG_FILE} (generated on first run).")
+    sys.exit(0)
+
 def main():
+    if "-help" in sys.argv or "--help" in sys.argv:
+        print_help()
+
     if "-nogui" in sys.argv:
         run_console_mode()
     else:
