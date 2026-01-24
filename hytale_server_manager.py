@@ -387,9 +387,9 @@ class HytaleUpdaterCore:
         if self.server_process and self.server_process.poll() is None:
             try:
                 self.log(f"> {command}")
-                # Reverting to LF (\n) as CRLF didn't help. 
-                # Stripping leading / in UI callback might help if server confuses it.
-                msg = (command + "\n").encode('utf-8')
+                # Using CRLF (\r\n) with binary pipes for Windows console compatibility.
+                # LF (\n) alone resulted in commands showing Usage output (incomplete input?).
+                msg = (command + "\r\n").encode('utf-8')
                 self.server_process.stdin.write(msg)
                 self.server_process.stdin.flush()
             except Exception as e:
