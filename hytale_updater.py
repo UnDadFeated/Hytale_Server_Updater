@@ -13,8 +13,8 @@ import re
 import signal
 import json
 import traceback
-import traceback
 import webbrowser
+
 
 import version
 
@@ -458,10 +458,7 @@ def run_gui_mode():
             self.var_schedule = tk.BooleanVar(value=self.config.get("enable_schedule", False))
             self.var_discord_url = tk.StringVar(value=self.config.get("discord_webhook", ""))
             self.var_schedule_time = tk.StringVar(value=str(self.config.get("restart_interval", 12)))
-            self.var_schedule_time = tk.StringVar(value=str(self.config.get("restart_interval", 12)))
             self.var_memory = tk.StringVar(value=self.config.get("server_memory", "8G"))
-            
-            self.var_memory.trace_add("write", self.on_config_change) # Trace for reboot warning
             
             self.var_memory.trace_add("write", self.on_config_change) # Trace for reboot warning
 
@@ -534,15 +531,10 @@ def run_gui_mode():
             self.lbl_reboot = ttk.Label(mem_frame, text="⚠ Reboot Required", foreground="orange")
             # hidden by default
 
-            # Bottom Row: Quick Access (Moved here)
-            qa_row = ttk.Frame(left_container)
-            qa_row.pack(fill=tk.X, pady=(10, 0), anchor="w")
-            
-            ttk.Label(qa_row, text="Quick Access:", font=("Segoe UI", 8, "bold")).pack(side=tk.LEFT, padx=(0,5))
-            ttk.Button(qa_row, text="📂 Server", command=lambda: self.open_folder("."), width=8).pack(side=tk.LEFT, padx=1)
-            ttk.Button(qa_row, text="📂 World", command=lambda: self.open_folder(WORLD_DIR), width=8).pack(side=tk.LEFT, padx=1)
-            ttk.Button(qa_row, text="📂 Backup", command=lambda: self.open_folder(BACKUP_DIR), width=8).pack(side=tk.LEFT, padx=1)
-            ttk.Button(qa_row, text="📂 Local", command=lambda: self.open_folder(self.get_local_saves_path()), width=8).pack(side=tk.LEFT, padx=1)
+            # Bottom Row: Removed Quick Access
+
+            # Right: Actions & Stats
+
 
             # Right: Actions & Stats
             c_col3 = ttk.Frame(controls_frame)
@@ -641,6 +633,12 @@ def run_gui_mode():
                 msg, tag = self.log_queue.get()
                 self.console.config(state=tk.NORMAL)
                 self.insert_colored(msg, tag)
+                
+                # Memory Leak Fix: Limit lines
+                num_lines = float(self.console.index('end-1c'))
+                if num_lines > 1000:
+                    self.console.delete('1.0', '50.0') # Remove first 50 lines to keep buffer healthy
+                
                 self.console.see(tk.END)
                 self.console.config(state=tk.DISABLED)
             self.root.after(100, self.update_log_loop)
@@ -687,31 +685,6 @@ def run_gui_mode():
             
             self.root.configure(bg=bg)
             self.console.config(bg=txt_bg, fg=txt_fg, insertbackground=fg)
-
-        def get_local_saves_path(self):
-            if IS_WINDOWS:
-                return os.path.join(os.getenv('APPDATA'), 'Hytale', 'UserData', 'Saves', 'universe', 'worlds')
-            else:
-                 return os.path.expanduser("~/.local/share/Hytale/UserData/Saves/universe/worlds")
-
-        def open_folder(self, path):
-             path = os.path.abspath(path)
-             if not os.path.exists(path):
-                 try:
-                     os.makedirs(path)
-                 except: pass 
-             
-             try:
-                 if IS_WINDOWS:
-                     os.startfile(path)
-                 else:
-                     if platform.system() == "Darwin":
-                         subprocess.Popen(["open", path])
-                     else:
-                         subprocess.Popen(["xdg-open", path])
-             except Exception as e:
-                 print(f"Error opening folder: {e}")
-                 messagebox.showerror("Error", f"Could not open folder:\n{path}\n\n{e}")
 
         def toggle_theme(self):
             self.is_dark = not self.is_dark
