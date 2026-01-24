@@ -242,37 +242,102 @@ class HytaleUpdaterCore:
             return None
 
     def check_self_update(self):
-        """Checks for updates to the manager script from git master branch."""
+        """Checks for updates to the manager script from git master branch via HTTP."""
         if not self.config.get("manager_auto_update", True):
              return
 
-        if not os.path.exists(".git"):
-            self.log("Not a git repository. Skipping self-update check.")
-            return
-
-        self.log("Checking for manager updates (git master)...")
+        self.log("Checking for manager updates (remote master)...")
+        
+        VERSION_URL = "https://raw.githubusercontent.com/UnDadFeated/Hytale_Server_Manager/master/version.py"
+        MANAGER_URL = "https://raw.githubusercontent.com/UnDadFeated/Hytale_Server_Manager/master/hytale_server_manager.py"
+        
         try:
-            # Fetch latest information from remote
-            subprocess.run(["git", "fetch", "origin", "master"], check=True, capture_output=True)
+            # Fetch remote version
+            req = urllib.request.Request(VERSION_URL, headers={'User-Agent': 'HytaleManagerUpdater'})
+            with urllib.request.urlopen(req) as response:
+                remote_version_content = response.read().decode('utf-8')
             
-            # Get local and remote hashes
-            local_hash = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-            remote_hash = subprocess.check_output(["git", "rev-parse", "origin/master"]).decode().strip()
+            # Simple parse for __version__
+            remote_version = None
+            for line in remote_version_content.splitlines():
+                if line.startswith("__version__"):
+                    remote_version = line.split('"')[1]
+                    break
+            
+            if not remote_version:
+                self.log("Could not parse remote version.")
+                return
 
-            if local_hash != remote_hash:
-                self.log("New manager version found. Updating from master...")
-                subprocess.run(["git", "pull", "origin", "master"], check=True)
-                self.log("Manager updated successfully. Restarting...")
+            local_version = version.__version__
+            
+            # Semantic version comparison
+            def parse_ver(v): return [int(x) for x in v.split('.')]
+            
+            if parse_ver(remote_version) > parse_ver(local_version):
+                self.log(f"New manager version found ({remote_version}). Downloading...")
                 
-                # Restart the script
-                python = sys.executable
-                os.execl(python, python, *sys.argv)
+                # Download files
+                req_ver = urllib.request.Request(VERSION_URL, headers={'User-Agent': 'HytaleManagerUpdater'})
+                with urllib.request.urlopen(req_ver) as response:
+                    with open("version.py.new", "wb") as f: f.write(response.read())
+                    
+                req_mgr = urllib.request.Request(MANAGER_URL, headers={'User-Agent': 'HytaleManagerUpdater'})
+                with urllib.request.urlopen(req_mgr) as response:
+                    with open("hytale_server_manager.py.new", "wb") as f: f.write(response.read())
+                
+                self.log("Files downloaded. Preparing installer...")
+                self.run_update_installer()
             else:
                 self.log("Manager is up to date.")
-        except subprocess.CalledProcessError as e:
-             self.log(f"Git check failed (Code {e.returncode}). Skipping manager update.")
+
         except Exception as e:
             self.log(f"Failed to check/update manager: {e}")
+
+    def run_update_installer(self):
+        """Generates and runs the separate installer script."""
+        installer_code = f'''
+import os
+import time
+import sys
+import subprocess
+
+pid = {os.getpid()}
+print(f"Waiting for parent process {{pid}} to close...")
+
+try:
+    while True:
+        try:
+            os.kill(pid, 0)
+            time.sleep(1)
+        except OSError:
+            break
+            
+    print("Updating files...")
+    time.sleep(1) # Extra buffer
+    
+    if os.path.exists("version.py.new"):
+        if os.path.exists("version.py"): os.remove("version.py")
+        os.rename("version.py.new", "version.py")
+        print("Updated version.py")
+        
+    if os.path.exists("hytale_server_manager.py.new"):
+        if os.path.exists("hytale_server_manager.py"): os.remove("hytale_server_manager.py")
+        os.rename("hytale_server_manager.py.new", "hytale_server_manager.py")
+        print("Updated hytale_server_manager.py")
+        
+    print("Files updated. Restarting manager...")
+    subprocess.Popen([sys.executable, "hytale_server_manager.py"])
+    
+except Exception as e:
+    print(f"Update failed: {{e}}")
+    input("Press Enter to exit...")
+'''
+        with open("updater_installer.py", "w") as f:
+            f.write(installer_code)
+            
+        self.log("Launching installer and exiting...")
+        subprocess.Popen([sys.executable, "updater_installer.py"])
+        sys.exit(0)
 
     def update_server(self):
         """Handles the server update process using the Hytale downloader."""
@@ -918,6 +983,16 @@ def print_help():
 
 def main():
     """Main entry point."""
+    # Cleanup temporary update files
+    if os.path.exists("updater_installer.py"):
+        try: os.remove("updater_installer.py")
+        except: pass
+        
+    for f in ["version.py.new", "hytale_server_manager.py.new"]:
+         if os.path.exists(f):
+             try: os.remove(f)
+             except: pass
+
     if "-help" in sys.argv or "--help" in sys.argv:
         print_help()
 
