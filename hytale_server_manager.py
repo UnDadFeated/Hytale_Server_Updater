@@ -385,6 +385,7 @@ class HytaleUpdaterCore:
 
     def send_command(self, command):
         if self.server_process and self.server_process.poll() is None:
+            try:
                 self.log(f"> {command}")
                 # Using LF (\n) again, but with debug logging enabled to verify.
                 msg = (command + "\n").encode('utf-8')
