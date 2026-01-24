@@ -14,41 +14,35 @@ import signal
 import json
 import traceback
 import webbrowser
-
-
 import version
 
-# --- Configuration ---
 JAVA_VERSION_REQ = 25
-SERVER_JAR = "HytaleServer.jar" 
+SERVER_JAR = "HytaleServer.jar"
 UPDATER_ZIP_URL = "https://downloader.hytale.com/hytale-downloader.zip"
 UPDATER_ZIP_FILE = "hytale-downloader.zip"
 IS_WINDOWS = platform.system() == "Windows"
 UPDATER_EXECUTABLE = "hytale-downloader.exe" if IS_WINDOWS else "hytale-downloader"
 ASSETS_FILE = "Assets.zip"
-# SERVER_MEMORY removed as constant, now in config
 AOT_FILE = "HytaleServer.aot"
 LOG_FILE = "hytale_server_manager.log"
 CONFIG_FILE = "hytale_server_manager_config.json"
 BACKUP_DIR = "universe/backups"
 WORLD_DIR = "universe/worlds"
 
-
-# --- Core Logic ---
 def load_config():
+    """Loads the server configuration from the JSON file."""
     default_config = {
         "last_server_version": "0.0.0",
         "dark_mode": True,
         "enable_logging": True,
         "check_updates": True,
-        "auto_start": False, 
+        "auto_start": False,
         "enable_backups": True,
         "enable_discord": False,
         "discord_webhook": "",
         "enable_auto_restart": True,
         "enable_schedule": False,
-        "enable_schedule": False,
-        "restart_interval": 12, # Hours
+        "restart_interval": 12,
         "server_memory": "8G",
         "max_backups": 3
     }
@@ -63,6 +57,7 @@ def load_config():
     return default_config
 
 def save_config(config):
+    """Saves the current configuration to the JSON file."""
     try:
         with open(CONFIG_FILE, "w") as f:
             json.dump(config, f, indent=4)
@@ -70,10 +65,12 @@ def save_config(config):
         print(f"Error saving config: {e}")
 
 class HytaleUpdaterCore:
+    """Core logic for managing, updating, and monitoring the Hytale server."""
+    
     def __init__(self, log_callback, input_callback=None, config=None, status_callback=None):
         self.log_callback = log_callback
-        self.input_callback = input_callback 
-        self.status_callback = status_callback # callback(status_dict)
+        self.input_callback = input_callback
+        self.status_callback = status_callback
         self.config = config if config else load_config()
         
         self.server_process = None
@@ -83,13 +80,16 @@ class HytaleUpdaterCore:
         self.start_time = None
 
     def log(self, message, tag=None):
+        """Sends a log message to the callback."""
         self.log_callback(message, tag)
 
     def update_status(self, status):
+        """Updates the status via the callback."""
         if self.status_callback:
             self.status_callback(status)
 
     def check_java_version(self):
+        """Verifies if Java 25 is installed and available."""
         self.log("Checking Java version...")
         try:
             result = subprocess.run(["java", "-version"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -105,6 +105,7 @@ class HytaleUpdaterCore:
             return False
 
     def check_assets(self):
+        """Checks if the required assets file exists, asking the user if missing."""
         self.log(f"Checking for {ASSETS_FILE}...")
         cwd = os.getcwd()
         assets_path = os.path.join(cwd, ASSETS_FILE)
@@ -117,25 +118,21 @@ class HytaleUpdaterCore:
         
         if self.input_callback:
             user_path = self.input_callback(f"Please enter the full path to {ASSETS_FILE}: ")
-            if user_path:
-                # Handle qeueue result if it's a queue (GUI) or string (Console)
-                if hasattr(user_path, 'get'): 
-                    user_path = user_path # It's a string from the GUI wrapper usually? 
-                    # Wait, my GUI implementation returned a value from queue. 
-                    # Let's assume input_callback returns the string.
-                    pass
+            if hasattr(user_path, 'get'):
+                pass 
 
-                if user_path and os.path.exists(user_path) and os.path.basename(user_path) == ASSETS_FILE:
-                     try:
-                         shutil.copy(user_path, cwd)
-                         self.log(f"Copied {ASSETS_FILE} to server directory.")
-                         return os.path.join(cwd, ASSETS_FILE)
-                     except Exception as e:
-                         self.log(f"Error copying file: {e}")
-                         return None
+            if user_path and os.path.exists(user_path) and os.path.basename(user_path) == ASSETS_FILE:
+                 try:
+                     shutil.copy(user_path, cwd)
+                     self.log(f"Copied {ASSETS_FILE} to server directory.")
+                     return os.path.join(cwd, ASSETS_FILE)
+                 except Exception as e:
+                     self.log(f"Error copying file: {e}")
+                     return None
         return None
 
     def ensure_updater(self):
+        """Ensures the Hytale updater executable is available."""
         if os.path.exists(UPDATER_EXECUTABLE):
             return [f"./{UPDATER_EXECUTABLE}"] if not IS_WINDOWS else [UPDATER_EXECUTABLE]
         
@@ -144,7 +141,6 @@ class HytaleUpdaterCore:
 
         self.log(f"Updater not found or checking for cache. Target: {UPDATER_ZIP_FILE}")
         
-        # Smart Download (Check Checksum/Size if zip exists)
         should_download = True
         if os.path.exists(UPDATER_ZIP_FILE):
              try:
@@ -173,28 +169,14 @@ class HytaleUpdaterCore:
                  self.log(f"Download failed: {e}")
                  return None
 
-        # Extract
         try:
             with zipfile.ZipFile(UPDATER_ZIP_FILE, 'r') as zip_ref:
                 zip_ref.extractall(".")
-            
-            # Cleanup Zip immediately after extraction? 
-            # The existing code didn't delete it to allow caching.
-            # User request: "delete the new server zip that is downloaded"
-            # We can delete it here if we don't want caching, OR we delete it at the end of update_server if we want it to persist for this run but not forever.
-            # Let's delete it here to keep it clean as requested.
-            # Zip is kept for caching (Smart Download)
-
-            
-            # Don't delete zip anymore to allow caching
-            # if os.path.exists(UPDATER_ZIP_FILE): os.remove(UPDATER_ZIP_FILE) 
-
             
             if os.path.exists(UPDATER_EXECUTABLE):
                 if not IS_WINDOWS: os.chmod(UPDATER_EXECUTABLE, 0o755)
                 return [f"./{UPDATER_EXECUTABLE}"] if not IS_WINDOWS else [UPDATER_EXECUTABLE]
             
-            # Fallback Search (Restored from v1.6)
             for f in os.listdir('.'):
                 if "hytale-downloader" in f:
                     if f.endswith(".jar"): return ["java", "-jar", f]
@@ -208,21 +190,20 @@ class HytaleUpdaterCore:
             return None
 
     def resolve_command_path(self, cmd_list):
-        # Helper to make command paths absolute for CWD changes
+        """Resolves absolute paths for command execution."""
         new_cmd = cmd_list.copy()
         if not new_cmd: return new_cmd
         
-        # Resolve first arg (executable)
         if new_cmd[0].startswith("./") or os.path.exists(new_cmd[0]):
              new_cmd[0] = os.path.abspath(new_cmd[0])
         
-        # Handle "java -jar relative.jar"
         if len(new_cmd) > 2 and "java" in new_cmd[0] and new_cmd[1] == "-jar":
              if os.path.exists(new_cmd[2]):
                  new_cmd[2] = os.path.abspath(new_cmd[2])
         return new_cmd
 
     def stop_existing_server_process(self):
+        """Detects and stops any running instance of the Hytale server."""
         self.log("Checking for running Hytale server...")
         if IS_WINDOWS:
             try:
@@ -247,9 +228,8 @@ class HytaleUpdaterCore:
                         subprocess.run(["kill", pid])
              except Exception: pass
 
-
-
     def get_remote_server_version(self, updater_cmd):
+        """Queries the updater for the latest remote server version."""
         try:
             cmd = updater_cmd + ["-print-version"]
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -260,6 +240,7 @@ class HytaleUpdaterCore:
             return None
 
     def update_server(self):
+        """Handles the server update process using the Hytale downloader."""
         updater_cmd = self.ensure_updater()
         if not updater_cmd:
             self.log("Cannot run update, updater not available.")
@@ -267,11 +248,8 @@ class HytaleUpdaterCore:
 
         self.log("Checking for updates...")
 
-        # Resolve CMD to absolute paths
         resolved_cmd = self.resolve_command_path(updater_cmd)
 
-        # Smart Update Logic (Check version first)
-        # Note: get_remote_server_version runs in CWD, which is fine for version check
         remote_version = self.get_remote_server_version(resolved_cmd)
         local_version = self.config.get("last_server_version", "0.0.0")
 
@@ -286,14 +264,12 @@ class HytaleUpdaterCore:
             self.log("Could not determine remote version. Forcing update check...")
 
         try:
-            # Create Staging Directory
             staging_dir = os.path.abspath("updater_staging")
             if os.path.exists(staging_dir): shutil.rmtree(staging_dir)
             os.makedirs(staging_dir)
             
             self.log(f"Downloading update to staging: {staging_dir}...")
             
-            # Run updater IN staging directory
             process = subprocess.Popen(resolved_cmd, cwd=staging_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             for line in iter(process.stdout.readline, ''):
                 if line: self.log(f"[Updater] {line.strip()}")
@@ -302,13 +278,7 @@ class HytaleUpdaterCore:
             if process.returncode == 0:
                 self.log("Update download complete. Applying files...")
                 
-                # Files to copy/replace from staging to root
-                # Note: Updater might extract to stored root of staging, or a subfolder.
-                # Use a recursive search or check common paths?
-                # Assuming updater dumps HytaleServer.jar in CWD (staging_dir)
-                
                 search_roots = [staging_dir]
-                # Also check if it created a 'Server' subdir
                 if os.path.exists(os.path.join(staging_dir, "Server")):
                     search_roots.append(os.path.join(staging_dir, "Server"))
                 
@@ -317,10 +287,8 @@ class HytaleUpdaterCore:
                 for root_path in search_roots:
                     jar_path = os.path.join(root_path, SERVER_JAR)
                     if os.path.exists(jar_path):
-                        # Found the update payload
                         found_server = True
                         
-                        # Move/Copy Files
                         replacements = [SERVER_JAR, AOT_FILE, ASSETS_FILE, "Licenses"]
                         for item in replacements:
                             src = os.path.join(root_path, item)
@@ -340,27 +308,14 @@ class HytaleUpdaterCore:
                 if not found_server:
                     self.log("WARNING: Updated HytaleServer.jar not found in staging!")
 
-                # Update Config
                 if remote_version:
                      self.config["last_server_version"] = remote_version
                      save_config(self.config)
                      self.log(f"Updated local version record to {remote_version}")
 
-                if os.path.exists(AOT_FILE):
-                     # Clean old AOT if we didn't just replace it (or even if we did, maybe safety?)
-                     # If we replaced it, we want it. If we didn't, it might be stale.
-                     # Logic: The copy loop handles AOT. If new AOT exists, it's copied.
-                     # If new AOT DOESNT exist, old AOT is likely invalid for new jar.
-                     # But we don't know if we just copied it.
-                     # Simple check: If AOT not in staging, delete local.
-                     # Actually, safe bet is to delete AOT if we updated, unless we copied a new one?
-                     # Let's trust the logic: If version changed, AOT likely invalid unless supplied.
-                     pass 
-
             else:
                  self.log(f"Updater exited with code {process.returncode}")
             
-            # Cleanup Staging
             if os.path.exists(staging_dir): 
                  try: 
                      shutil.rmtree(staging_dir)
@@ -368,8 +323,6 @@ class HytaleUpdaterCore:
                  except Exception as e:
                      self.log(f"Failed to clean staging: {e}")
 
-            # Cleanup Extracted Downloader Artifacts (Keep zip for cache)
-            # These are temp files from ensure_updater extraction
             artifacts = ["QUICKSTART.md", "hytale-downloader-windows-amd64.exe", "hytale-downloader-linux-amd64", "hytale-downloader"]
             for f in artifacts:
                 if os.path.exists(f):
@@ -380,7 +333,6 @@ class HytaleUpdaterCore:
         except Exception as e:
             self.log(f"Update failed: {e}")
             self.log(traceback.format_exc())
-            # Ensure cleanup on fail
             if os.path.exists(staging_dir): 
                  try: 
                      shutil.rmtree(staging_dir)
@@ -388,14 +340,11 @@ class HytaleUpdaterCore:
                      self.log(f"Failed to clean staging after error: {e}")
 
     def send_command(self, command):
+        """Sends a console command to the running server process."""
         if self.server_process and self.server_process.poll() is None:
             try:
                 self.log(f"> {command}")
-                
-                # Revert to standard pass-through with LF (\n).
-                # We send exactly what the user types + \n.
                 msg = (command + "\n").encode('utf-8')
-                
                 self.server_process.stdin.write(msg)
                 self.server_process.stdin.flush()
             except Exception as e:
@@ -404,6 +353,7 @@ class HytaleUpdaterCore:
              self.log("Server is not running.")
 
     def backup_world(self):
+        """Creates a backup of the world directory."""
         if not self.config.get("enable_backups", True): return
         
         if not os.path.exists(WORLD_DIR):
@@ -419,7 +369,7 @@ class HytaleUpdaterCore:
         try:
             shutil.make_archive(backup_name, 'zip', WORLD_DIR)
             self.log(f"Backup created: {backup_name}.zip")
-            # Cleanup
+            
             max_b = int(self.config.get("max_backups", 3))
             backups = sorted([f for f in os.listdir(BACKUP_DIR) if f.startswith("world_backup_") and f.endswith(".zip")])
             if len(backups) > max_b:
@@ -430,6 +380,7 @@ class HytaleUpdaterCore:
             self.log(f"Backup failed: {e}")
 
     def send_discord_webhook(self, message):
+        """Sends a status message to the configured Discord webhook."""
         if not self.config.get("enable_discord", False): return
         url = self.config.get("discord_webhook", "").strip()
         if not url: return
@@ -442,11 +393,13 @@ class HytaleUpdaterCore:
             self.log(f"Discord Webhook Failed: {e}")
 
     def start_server_sequence(self):
+        """Initiates the server startup sequence in a separate thread."""
         t = threading.Thread(target=self._start_server_thread)
         t.daemon = True
         t.start()
 
     def _start_server_thread(self):
+        """Internal method to handle the server startup steps."""
         self.stop_requested = False
         
         if not self.check_java_version(): return
@@ -466,8 +419,6 @@ class HytaleUpdaterCore:
 
         memory = self.config.get("server_memory", "4G")
         
-        # Prepare Environment with Memory Settings
-        # We need to define env first!
         env = os.environ.copy()
         env["_JAVA_OPTIONS"] = f"-Xmx{memory}"
         
@@ -489,15 +440,12 @@ class HytaleUpdaterCore:
             self.start_time = datetime.datetime.now()
             self.update_status({"state": "Running", "pid": self.server_process.pid})
 
-            # Start IO Threads
             threading.Thread(target=self._read_stream, args=(self.server_process.stdout, "stdout"), daemon=True).start()
             threading.Thread(target=self._read_stream, args=(self.server_process.stderr, "stderr"), daemon=True).start()
             
-            # Start Monitor
             self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
             self.monitor_thread.start()
             
-            # Start Schedule
             if self.config.get("enable_schedule", False):
                 self._schedule_restart()
 
@@ -506,21 +454,20 @@ class HytaleUpdaterCore:
             self.update_status({"state": "Stopped"})
 
     def _read_stream(self, stream, tag):
+        """Reads output from the server process stdout/stderr."""
         try:
-            # Read bytes, decode manually
             for line_bytes in iter(stream.readline, b''):
                 if line_bytes:
-                    # Decode (handle potential errors)
                     line = line_bytes.decode('utf-8', errors='replace').strip()
                     if line: self.log(line, tag)
         except: pass
         finally: stream.close()
 
     def _monitor_loop(self):
+        """Monitors the server process status."""
         if not self.server_process: return
         
         while self.server_process and self.server_process.poll() is None:
-            # Update Status (Uptime works even without psutil)
             if self.start_time:
                 uptime = datetime.datetime.now() - self.start_time
                 uptime_str = str(uptime).split('.')[0]
@@ -532,14 +479,12 @@ class HytaleUpdaterCore:
             
             time.sleep(1)
 
-        # Process exited
         rc = self.server_process.returncode
         self.log(f"Server exited with code {rc}")
         self.server_process = None
         self.update_status({"state": "Stopped"})
         self.send_discord_webhook(f"🔴 Server Stopped (Code {rc})")
 
-        # Auto Restart Logic
         if rc != 0 and not self.stop_requested and self.config.get("enable_auto_restart", True):
              self.log("Crash detected! Restarting in 10 seconds...")
              self.send_discord_webhook("⚠️ Crash detected. Restarting in 10s...")
@@ -547,6 +492,7 @@ class HytaleUpdaterCore:
              self.start_server_sequence()
 
     def stop_server(self):
+        """Stops the running server process."""
         self.stop_requested = True
         if self.restart_timer:
             self.restart_timer.cancel()
@@ -557,11 +503,11 @@ class HytaleUpdaterCore:
                 self.server_process.stdin.write(b"stop\n")
                 self.server_process.stdin.flush()
             except:
-                # Force kill if needed
                 if self.server_process: 
                     self.server_process.kill()
     
     def _schedule_restart(self):
+        """Schedules an automatic restart after a configured interval."""
         hours = float(self.config.get("restart_interval", 12))
         seconds = hours * 3600
         self.log(f"Scheduled restart in {hours} hours.")
@@ -570,7 +516,6 @@ class HytaleUpdaterCore:
             self.log("Executing scheduled restart...")
             self.send_discord_webhook("⏰ Executing scheduled restart...")
             self.stop_server()
-            # Wait for stop
             time.sleep(10)
             self.start_server_sequence()
 
@@ -578,8 +523,8 @@ class HytaleUpdaterCore:
         self.restart_timer.start()
 
 
-# --- Console Mode ---
 def run_console_mode():
+    """Runs the updater in console-only mode."""
     def console_logger(message, tag=None):
         timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
         print(f"{timestamp} {message}")
@@ -600,24 +545,23 @@ def run_console_mode():
     except KeyboardInterrupt:
         core.stop_server()
 
-# --- GUI Mode ---
 def run_gui_mode():
+    """Starts the graphical user interface."""
     import tkinter as tk
     from tkinter import scrolledtext, messagebox, ttk, filedialog
 
     class HytaleGUI:
+        """Tkinter-based GUI for the Hytale Server Manager."""
         def __init__(self, root):
             self.root = root
             self.root.title(f"Hytale Server Manager v{version.__version__}")
             
-            # Default Size (Not maximized)
             self.root.geometry("1000x800")
             self.root.state("normal")
 
             self.config = load_config()
             self.is_dark = self.config.get("dark_mode", True)
             
-            # Vars
             self.var_logging = tk.BooleanVar(value=self.config.get("enable_logging", True))
             self.var_check_upd = tk.BooleanVar(value=self.config.get("check_updates", True))
             self.var_autostart = tk.BooleanVar(value=self.config.get("auto_start", False))
@@ -630,14 +574,11 @@ def run_gui_mode():
             self.var_memory = tk.StringVar(value=self.config.get("server_memory", "8G"))
             self.var_max_backups = tk.StringVar(value=str(self.config.get("max_backups", 3)))
             
-            
-            
-            self.var_memory.trace_add("write", self.on_config_change) # Trace for reboot warning
+            self.var_memory.trace_add("write", self.on_config_change)
 
             self.status_var = tk.StringVar(value="Status: Stopped")
             self.uptime_var = tk.StringVar(value="Uptime: 00:00:00")
 
-            # Core
             self.log_queue = queue.Queue()
             self.core = HytaleUpdaterCore(self.log_queue_wrapper, self.ask_file, self.config, self.update_stats)
 
@@ -649,7 +590,6 @@ def run_gui_mode():
                 self.root.after(1000, self.start_server)
 
         def setup_ui(self):
-            # 1. Header (About)
             header = ttk.Frame(self.root, padding="10")
             header.pack(fill=tk.X)
             
@@ -659,40 +599,31 @@ def run_gui_mode():
             desc = ttk.Label(header, text=" | Comprehensive Server Management Tool", font=("Segoe UI", 10))
             desc.pack(side=tk.LEFT, padx=10, pady=(4,0))
             
-            # 2. Controls & Settings Container
             controls_frame = ttk.LabelFrame(self.root, text="Controls & Configuration", padding="10")
             controls_frame.pack(fill=tk.X, padx=10, pady=5)
             
-            # Grid Layout for Controls
-            # Container for Left side (Options + Quick Access)
             left_container = ttk.Frame(controls_frame)
             left_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-            # Top Row: Checkboxes
             options_row = ttk.Frame(left_container)
             options_row.pack(fill=tk.X, anchor="w")
 
-            # Left: Toggles
             c_col1 = ttk.Frame(options_row)
             c_col1.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
             
             ttk.Checkbutton(c_col1, text="Enable File Logging", variable=self.var_logging, command=self.save).pack(anchor="w")
             ttk.Checkbutton(c_col1, text="Check Updates on Start", variable=self.var_check_upd, command=self.save).pack(anchor="w")
             ttk.Checkbutton(c_col1, text="Auto-Start Server", variable=self.var_autostart, command=self.save).pack(anchor="w")
-            # Swapped: Moved Auto-Restart Here
             ttk.Checkbutton(c_col1, text="Auto-Restart on Crash", variable=self.var_restart, command=self.save).pack(anchor="w")
             
-            # Middle: Advanced
             c_col2 = ttk.Frame(options_row)
             c_col2.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
 
-            # Swapped: Moved Backup Here with Max Field
             bkp_frame = ttk.Frame(c_col2)
             bkp_frame.pack(anchor="w")
             ttk.Checkbutton(bkp_frame, text="Backup World on Start", variable=self.var_backup, command=self.save).pack(side=tk.LEFT)
             ttk.Label(bkp_frame, text="Max:").pack(side=tk.LEFT, padx=(5,2))
             ttk.Entry(bkp_frame, textvariable=self.var_max_backups, width=3).pack(side=tk.LEFT)
-            
             
             dsc_frame = ttk.Frame(c_col2)
             dsc_frame.pack(anchor="w", pady=2)
@@ -709,23 +640,10 @@ def run_gui_mode():
             ttk.Label(mem_frame, text="Server RAM:").pack(side=tk.LEFT)
             ttk.Entry(mem_frame, textvariable=self.var_memory, width=5).pack(side=tk.LEFT, padx=5)
             self.lbl_reboot = ttk.Label(mem_frame, text="⚠ Reboot Required", foreground="orange")
-            # hidden by default
 
-
-            # Bottom Row: Removed Quick Access
-
-            # Right: Actions & Stats
-
-
-            # Right: Actions & Stats
-            # 2x2 Grid Layout
-            # Row 0: QA Buttons (L) | Action Buttons (R)
-            # Row 1: Status Text (L) | Uptime Text (R)
-            
             c_col3 = ttk.Frame(controls_frame)
             c_col3.pack(side=tk.RIGHT, fill=tk.Y)
             
-            # Helper to open folder
             def open_dir(path):
                 try:
                     p = os.path.abspath(path)
@@ -734,37 +652,31 @@ def run_gui_mode():
                 except Exception as e:
                     messagebox.showerror("Error", f"Could not open directory: {e}")
 
-            # Top Row Frames
             qa_buttons_frame = ttk.Frame(c_col3)
             qa_buttons_frame.grid(row=0, column=0, sticky="n", padx=(0, 10), pady=2)
             
             action_buttons_frame = ttk.Frame(c_col3)
             action_buttons_frame.grid(row=0, column=1, sticky="n", pady=2)
 
-            # Quick Access Buttons (Vertical)
             ttk.Button(qa_buttons_frame, text="Server", width=10, command=lambda: open_dir(".")).pack(fill=tk.X, pady=1)
             ttk.Button(qa_buttons_frame, text="Worlds", width=10, command=lambda: open_dir(WORLD_DIR)).pack(fill=tk.X, pady=1)
             ttk.Button(qa_buttons_frame, text="Backups", width=10, command=lambda: open_dir(BACKUP_DIR)).pack(fill=tk.X, pady=1)
 
-            # Action Buttons (Vertical)
             self.btn_start = ttk.Button(action_buttons_frame, text="START SERVER", command=self.start_server, width=20)
             self.btn_start.pack(pady=1)
             self.btn_stop = ttk.Button(action_buttons_frame, text="STOP SERVER", command=self.stop_server, state=tk.DISABLED, width=20)
             self.btn_stop.pack(pady=1)
 
-            # Bottom Row Labels
             self.lbl_status = ttk.Label(c_col3, textvariable=self.status_var, font=("Consolas", 9))
             self.lbl_status.grid(row=1, column=0, pady=5)
             
             self.lbl_uptime = ttk.Label(c_col3, textvariable=self.uptime_var, font=("Consolas", 9))
             self.lbl_uptime.grid(row=1, column=1, pady=5)
             
-            # 3. Console
             self.console = scrolledtext.ScrolledText(self.root, font=("Consolas", -10), state=tk.DISABLED)
             self.console.pack(fill=tk.BOTH, expand=True, padx=10, pady=(5, 0))
             self.setup_tags()
 
-            # 3.5 Input (Tight layout, no button)
             input_frame = ttk.Frame(self.root)
             input_frame.pack(fill=tk.X, padx=10, pady=(2, 5))
             
@@ -773,9 +685,6 @@ def run_gui_mode():
             self.entry_cmd.pack(side=tk.LEFT, fill=tk.X, expand=True)
             self.entry_cmd.bind("<Return>", lambda e: self.send_command_ui())
             
-            # Removed Send Button as requested
-            
-            # 4. Footer (Donation)
             footer = ttk.Frame(self.root, padding="10")
             footer.pack(fill=tk.X)
             
@@ -787,7 +696,6 @@ def run_gui_mode():
             
             ttk.Label(donate_frame, text="☕ Buy me a coffee:").pack(side=tk.LEFT, padx=5)
             
-            # PayPal
             pp_url = "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=jscheema@gmail.com&item_name=Hytale%20Server%20Updater&amount=5.00&currency_code=USD"
             btn_pp = ttk.Button(donate_frame, text="PayPal ($5)", command=lambda: webbrowser.open(pp_url))
             btn_pp.pack(side=tk.LEFT, padx=2)
@@ -799,26 +707,23 @@ def run_gui_mode():
                 self.input_var.set("")
                 self.entry_cmd.focus()
 
-
         def on_config_change(self, *args):
             self.save()
-            # Check if running to show reboot warning
             if self.core.server_process:
                  self.lbl_reboot.pack(side=tk.LEFT, padx=5)
             else:
                  self.lbl_reboot.pack_forget()
 
         def start_server(self):
-            self.lbl_reboot.pack_forget() # Clear warning on start
-            self.save() # Save check first
+            self.lbl_reboot.pack_forget()
+            self.save()
             self.btn_start.config(state=tk.DISABLED)
             self.btn_stop.config(state=tk.NORMAL)
             self.core.start_server_sequence()
 
         def stop_server(self):
             self.core.stop_server()
-            self.btn_stop.config(state=tk.DISABLED) # Prevent double click
-            # Enable start handled by monitoring callback when actually stopped
+            self.btn_stop.config(state=tk.DISABLED)
 
         def save(self):
             self.config.update({
@@ -836,12 +741,10 @@ def run_gui_mode():
                 "server_memory": self.var_memory.get(),
                 "max_backups": int(self.var_max_backups.get()) if self.var_max_backups.get().isdigit() else 3
             })
-            # Also update core config in realtime
             self.core.config = self.config
             save_config(self.config)
 
         def update_stats(self, status):
-            # Callback from core thread
             state = status.get("state", "Unknown")
             if state == "Stopped":
                  self.root.after(0, lambda: self.btn_start.config(state=tk.NORMAL))
@@ -866,17 +769,16 @@ def run_gui_mode():
                 self.console.config(state=tk.NORMAL)
                 self.insert_colored(msg, tag)
                 
-                # Memory Leak Fix: Limit lines
+                # Prevent memory leaks by limiting the buffer size
                 num_lines = float(self.console.index('end-1c'))
                 if num_lines > 1000:
-                    self.console.delete('1.0', '50.0') # Remove first 50 lines to keep buffer healthy
+                    self.console.delete('1.0', '50.0')
                 
                 self.console.see(tk.END)
                 self.console.config(state=tk.DISABLED)
             self.root.after(100, self.update_log_loop)
 
         def insert_colored(self, text, tag):
-             # Simple parser
              parts = re.split(r'(\x1b\[[0-9;]*m)', text)
              current_tag = tag if tag == "stderr" else None
              for part in parts:
@@ -891,7 +793,6 @@ def run_gui_mode():
                      if part: self.console.insert(tk.END, part, (current_tag,) if current_tag else ())
 
         def ask_file(self, prompt):
-            # Blocking ask
             return filedialog.askopenfilename(title=prompt, filetypes=[("Zip Files", "*.zip")])
 
         def setup_tags(self):
@@ -929,6 +830,7 @@ def run_gui_mode():
     root.mainloop()
 
 def print_help():
+    """Prints the help message."""
     print(f"Hytale Server Manager v{version.__version__}")
     print("--------------------------------------------------")
     print("Usage: python hytale_server_manager.py [options]")
@@ -943,6 +845,7 @@ def print_help():
     sys.exit(0)
 
 def main():
+    """Main entry point."""
     if "-help" in sys.argv or "--help" in sys.argv:
         print_help()
 
@@ -952,10 +855,8 @@ def main():
         try:
             run_gui_mode()
         except ImportError:
-            # Fallback if tkinter is missing
             run_console_mode()
         except Exception:
-             # Catch other GUI init errors
              traceback.print_exc()
              input("GUI Start Failed! Press Enter to exit...")
 
