@@ -387,8 +387,11 @@ class HytaleUpdaterCore:
         if self.server_process and self.server_process.poll() is None:
             try:
                 self.log(f"> {command}")
-                # Using LF (\n) again, but with debug logging enabled to verify.
-                msg = (command + "\n").encode('utf-8')
+                
+                # Logic: Strip leading slash + CRLF. 
+                # This mimics typing 'auth login' in a real Windows console.
+                cmd_clean = command.lstrip('/')
+                msg = (cmd_clean + "\r\n").encode('utf-8')
                 
                 # Debug: log hex to verify what we are sending
                 self.log(f"[Debug] Sending bytes: {msg.hex()}")
