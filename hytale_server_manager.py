@@ -468,7 +468,7 @@ class HytaleUpdaterCore:
             
             self.server_process = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE,
-                text=True, bufsize=1, universal_newlines=True, newline='\n',
+                text=True, bufsize=1, universal_newlines=True, 
                 startupinfo=startupinfo, creationflags=creationflags
             )
             self.start_time = datetime.datetime.now()
