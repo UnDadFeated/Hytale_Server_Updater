@@ -708,13 +708,14 @@ def run_gui_mode():
             c_col1.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
             
             ttk.Checkbutton(c_col1, text="Enable File Logging", variable=self.var_logging, command=self.save).pack(anchor="w")
-            ttk.Checkbutton(c_col1, text="Check for new server updates at start", variable=self.var_check_upd, command=self.save).pack(anchor="w")
-            ttk.Label(c_col1, text="(Uncheck if modded)", font=("Segoe UI", 8), foreground="gray").pack(anchor="w", padx=(20, 0))
             ttk.Checkbutton(c_col1, text="Auto-Start Server", variable=self.var_autostart, command=self.save).pack(anchor="w")
             ttk.Checkbutton(c_col1, text="Auto-Restart on Crash", variable=self.var_restart, command=self.save).pack(anchor="w")
             
             c_col2 = ttk.Frame(options_row)
             c_col2.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
+            
+            ttk.Checkbutton(c_col2, text="Check for new server updates at start", variable=self.var_check_upd, command=self.save).pack(anchor="w")
+            ttk.Label(c_col2, text="(Uncheck if modded)", font=("Segoe UI", 8), foreground="gray").pack(anchor="w", padx=(20, 0))
             
             bkp_frame = ttk.Frame(c_col2)
             bkp_frame.pack(anchor="w")
