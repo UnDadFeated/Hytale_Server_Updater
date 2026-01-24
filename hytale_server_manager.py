@@ -360,13 +360,22 @@ class HytaleUpdaterCore:
             else:
                  self.log(f"Updater exited with code {process.returncode}")
             
-            # Cleanup
+            # Cleanup Staging
             if os.path.exists(staging_dir): 
                  try: 
                      shutil.rmtree(staging_dir)
                      self.log(f"Cleaned up staging: {staging_dir}")
                  except Exception as e:
                      self.log(f"Failed to clean staging: {e}")
+
+            # Cleanup Extracted Downloader Artifacts (Keep zip for cache)
+            # These are temp files from ensure_updater extraction
+            artifacts = ["QUICKSTART.md", "hytale-downloader-windows-amd64.exe", "hytale-downloader-linux-amd64", "hytale-downloader"]
+            for f in artifacts:
+                if os.path.exists(f):
+                    try: 
+                        os.remove(f)
+                    except: pass
 
         except Exception as e:
             self.log(f"Update failed: {e}")
