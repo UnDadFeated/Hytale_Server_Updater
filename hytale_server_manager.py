@@ -388,10 +388,9 @@ class HytaleUpdaterCore:
             try:
                 self.log(f"> {command}")
                 
-                # Logic: Strip leading slash + CRLF. 
-                # This mimics typing 'auth login' in a real Windows console.
-                cmd_clean = command.lstrip('/')
-                msg = (cmd_clean + "\r\n").encode('utf-8')
+                # Revert to standard pass-through with LF (\n).
+                # We send exactly what the user types + \n.
+                msg = (command + "\n").encode('utf-8')
                 
                 # Debug: log hex to verify what we are sending
                 self.log(f"[Debug] Sending bytes: {msg.hex()}")
