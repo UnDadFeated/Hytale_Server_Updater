@@ -4,20 +4,12 @@ A Python automation script for managing Dedicated Hytale Servers.
 
 ## Features
 
-*   **GUI & Console Modes**: 
-    *   **GUI**: Modern Single-Page interface with **Dark/Light Mode Themes**, logging toggles, and direct control.
-    *   **Quick Access**: Open Server, World, and Backup folders directly from the GUI.
-    *   **Console**: Headless mode (`-nogui`) for automated environments. Supports all robust features (Backups, Webhooks, Restarts).
-*   **Robustness**:
-    *   **World Backups**: Automatically Zips the `world` folder before server start (keeps last 5).
-    *   **Crash Detection**: Automatically detects crashes and restarts the server.
-    *   **Scheduled Restarts**: Configurable timer to restart the server periodically (e.g., every 12 hours).
-    *   **Discord Integration**: Sends Webhook notifications for Server Start, Stop, and Crashes.
-*   **Platform Checks**: Verifies Java 25 installation.
-*   **Asset Management**: Checks for `Assets.zip` and prompts to locate/copy it if missing.
-*   **Auto-Updater**: Automatically downloads the Hytale Downloader CLI and updates server files.
-*   **Smart Updates**: Checks the remote server version before downloading to save bandwidth.
-*   **Optimization**: Detects `HytaleServer.aot` to enable Ahead-Of-Time cache for faster startup.
+*   **GUI & Console Modes**: Use the modern graphical interface or headless console mode (`-nogui`) for flexible management.
+*   **Robustness**: Automated crash detection, scheduled restarts, and world backups (zips locally before starting).
+*   **Smart Updates**: Checks the remote server version before installing to prevent unnecessary downloads.
+*   **Performance**: Detects and enables Ahead-Of-Time (`HytaleServer.aot`) cache for faster startups.
+*   **Notifications**: Integrated Discord Webhooks for server status changes (Start, Stop, Crash).
+*   **Platform Checks**: auto-detects Java 25 and `Assets.zip` requirements.
 
 ## Requirements
 *   **Operating System**: Windows or Linux
@@ -41,15 +33,15 @@ Run the script without arguments to open the GUI:
 python hytale_updater.py
 ```
 *   **Controls**: Toggle Backups, Discord Webhooks, and Auto-Restart directly from the UI.
-*   **Quick Access**: Use buttons to instantly open the Server, World, or Backups folder.
-*   **Monitoring**: View Server Uptime.
+*   **Quick Access**: Open Server, World, and Backup folders.
+*   **Themes**: Toggle between Light and Dark mode.
 
 ### Console Mode (Headless)
 Run with the `-nogui` argument for CLI-only operation:
 ```bash
 python hytale_updater.py -nogui
 ```
-*   Configuration is loaded from `hytale_updater_config.json`. Run GUI once to generate it comfortably, or edit manually.
+*   Configuration is loaded from `hytale_updater_config.json`.
 
 ### Help
 View all command line arguments:
@@ -73,5 +65,5 @@ Settings are saved to `hytale_updater_config.json`. Key features:
 
 ## Versioning
 
-Current Version: 1.8.0
+Current Version: 1.9.0
 See `version.py` for the tracked version number.
