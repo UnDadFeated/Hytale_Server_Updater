@@ -82,7 +82,6 @@ class HytaleUpdaterCore:
         self.start_time = None
 
     def log(self, message, tag=None):
-        """Sends a log message to the callback."""
         self.log_callback(message, tag)
 
     def update_status(self, status):
@@ -246,18 +245,14 @@ class HytaleUpdaterCore:
         if not self.config.get("manager_auto_update", True):
              return
 
-        self.log("Checking for manager updates (remote master)...")
-        
         VERSION_URL = "https://raw.githubusercontent.com/UnDadFeated/Hytale_Server_Manager/master/version.py"
         MANAGER_URL = "https://raw.githubusercontent.com/UnDadFeated/Hytale_Server_Manager/master/hytale_server_manager.py"
         
         try:
-            # Fetch remote version
             req = urllib.request.Request(VERSION_URL, headers={'User-Agent': 'HytaleManagerUpdater'})
             with urllib.request.urlopen(req) as response:
                 remote_version_content = response.read().decode('utf-8')
             
-            # Simple parse for __version__
             remote_version = None
             for line in remote_version_content.splitlines():
                 if line.startswith("__version__"):
