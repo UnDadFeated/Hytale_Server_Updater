@@ -494,8 +494,16 @@ def run_gui_mode():
             controls_frame.pack(fill=tk.X, padx=10, pady=5)
             
             # Grid Layout for Controls
+            # Container for Left side (Options + Quick Access)
+            left_container = ttk.Frame(controls_frame)
+            left_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+            # Top Row: Checkboxes
+            options_row = ttk.Frame(left_container)
+            options_row.pack(fill=tk.X, anchor="w")
+
             # Left: Toggles
-            c_col1 = ttk.Frame(controls_frame)
+            c_col1 = ttk.Frame(options_row)
             c_col1.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
             
             ttk.Checkbutton(c_col1, text="Enable File Logging", variable=self.var_logging, command=self.save).pack(anchor="w")
@@ -504,9 +512,9 @@ def run_gui_mode():
             ttk.Checkbutton(c_col1, text="Backup World on Start", variable=self.var_backup, command=self.save).pack(anchor="w")
             
             # Middle: Advanced
-            c_col2 = ttk.Frame(controls_frame)
+            c_col2 = ttk.Frame(options_row)
             c_col2.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
-            
+
             ttk.Checkbutton(c_col2, text="Auto-Restart on Crash", variable=self.var_restart, command=self.save).pack(anchor="w")
             
             dsc_frame = ttk.Frame(c_col2)
@@ -525,7 +533,17 @@ def run_gui_mode():
             ttk.Entry(mem_frame, textvariable=self.var_memory, width=5).pack(side=tk.LEFT, padx=5)
             self.lbl_reboot = ttk.Label(mem_frame, text="⚠ Reboot Required", foreground="orange")
             # hidden by default
+
+            # Bottom Row: Quick Access (Moved here)
+            qa_row = ttk.Frame(left_container)
+            qa_row.pack(fill=tk.X, pady=(10, 0), anchor="w")
             
+            ttk.Label(qa_row, text="Quick Access:", font=("Segoe UI", 8, "bold")).pack(side=tk.LEFT, padx=(0,5))
+            ttk.Button(qa_row, text="📂 Server", command=lambda: self.open_folder("."), width=8).pack(side=tk.LEFT, padx=1)
+            ttk.Button(qa_row, text="📂 World", command=lambda: self.open_folder(WORLD_DIR), width=8).pack(side=tk.LEFT, padx=1)
+            ttk.Button(qa_row, text="📂 Backup", command=lambda: self.open_folder(BACKUP_DIR), width=8).pack(side=tk.LEFT, padx=1)
+            ttk.Button(qa_row, text="📂 Local", command=lambda: self.open_folder(self.get_local_saves_path()), width=8).pack(side=tk.LEFT, padx=1)
+
             # Right: Actions & Stats
             c_col3 = ttk.Frame(controls_frame)
             c_col3.pack(side=tk.RIGHT, fill=tk.Y)
@@ -538,21 +556,9 @@ def run_gui_mode():
 
             self.lbl_stats = ttk.Label(c_col3, textvariable=self.stats_var, font=("Consolas", 9))
             self.lbl_stats.pack(pady=5)
-
-            # Quick Access
-            ttk.Separator(c_col3, orient='horizontal').pack(fill='x', pady=5)
-            ttk.Label(c_col3, text="Quick Access:", font=("Segoe UI", 8, "bold")).pack(anchor="w")
-            
-            btn_frame = ttk.Frame(c_col3)
-            btn_frame.pack(fill=tk.X)
-            
-            ttk.Button(btn_frame, text="📂 Server", command=lambda: self.open_folder("."), width=8).pack(side=tk.LEFT, padx=1)
-            ttk.Button(btn_frame, text="📂 World", command=lambda: self.open_folder(WORLD_DIR), width=8).pack(side=tk.LEFT, padx=1)
-            ttk.Button(btn_frame, text="📂 Backup", command=lambda: self.open_folder(BACKUP_DIR), width=8).pack(side=tk.LEFT, padx=1)
-            ttk.Button(btn_frame, text="📂 Local", command=lambda: self.open_folder(self.get_local_saves_path()), width=8).pack(side=tk.LEFT, padx=1)
             
             # 3. Console
-            self.console = scrolledtext.ScrolledText(self.root, font=("Consolas", 8), state=tk.DISABLED)
+            self.console = scrolledtext.ScrolledText(self.root, font=("Consolas", -10), state=tk.DISABLED)
             self.console.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
             self.setup_tags()
             
