@@ -289,6 +289,7 @@ class HytaleUpdaterCore:
 
     def run_update_installer(self):
         """Generates and runs the separate installer script."""
+        installer_code = f'''
 import os
 import time
 import sys
@@ -337,6 +338,7 @@ try:
 except Exception as e:
     print(f"Update failed: {{e}}")
     input("Press Enter to exit...")
+'''
 
         with open("updater_installer.py", "w") as f:
             f.write(installer_code)

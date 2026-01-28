@@ -1,2 +1,2 @@
-__version__ = "2.6.4"
+__version__ = "2.6.5"
 """Holds the current version of the Hytale Server Manager."""
