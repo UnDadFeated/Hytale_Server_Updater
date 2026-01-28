@@ -781,6 +781,7 @@ def run_gui_mode():
             input_frame = ttk.Frame(self.root)
             input_frame.pack(fill=tk.X, padx=10, pady=(2, 5))
             
+            ttk.Label(input_frame, text="Command:").pack(side=tk.LEFT, padx=(0, 5))
             self.input_var = tk.StringVar()
             self.entry_cmd = ttk.Entry(input_frame, textvariable=self.input_var)
             self.entry_cmd.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -921,6 +922,7 @@ def run_gui_mode():
             style.configure("TButton", background="#3c3c3c" if self.is_dark else "#e0e0e0", foreground=fg, borderwidth=1)
             style.map("TButton", background=[("active", "#0078d7")], foreground=[("active", "white")])
             style.configure("TCheckbutton", background=bg, foreground=fg)
+            style.configure("TEntry", foreground="black", fieldbackground="white")
             
             self.root.configure(bg=bg)
             self.console.config(bg=txt_bg, fg=txt_fg, insertbackground=fg)
