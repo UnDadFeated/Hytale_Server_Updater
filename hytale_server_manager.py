@@ -395,9 +395,12 @@ except Exception as e:
                                         shutil.copytree(src, dest)
                                     else:
                                         shutil.copy2(src, dest)
-                                    self.log(f"Updated {item}")
+                                    self.log(f"Updated {item} from {src}")
                                 except Exception as e:
                                     self.log(f"Failed to update {item}: {e}")
+                            else:
+                                if item == ASSETS_FILE:
+                                    self.log(f"WARNING: New {ASSETS_FILE} not found in update.")
                         break
                 
                 if not found_server:
