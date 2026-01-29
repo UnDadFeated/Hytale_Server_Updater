@@ -29,6 +29,36 @@ CONFIG_FILE = "hytale_server_manager_config.json"
 BACKUP_DIR = "universe/backups"
 WORLD_DIR = "universe/worlds"
 
+try:
+    from rich.console import Console
+    console = Console()
+except ImportError:
+    console = None
+
+try:
+    import discord
+    from discord.ext import commands
+    HAS_DISCORD = True
+except ImportError:
+    HAS_DISCORD = False
+
+def validate_config(config):
+    """Validates the configuration values."""
+    # Memory check (e.g., 4G, 4096M)
+    mem = config.get("server_memory", "4G")
+    if not re.match(r"^\d+[GM]$", mem):
+        print(f"WARNING: Invalid server_memory format '{mem}'. Reverting to 4G.")
+        config["server_memory"] = "4G"
+
+    # Interval check
+    try:
+        float(config.get("restart_interval", 12))
+    except ValueError:
+        print("WARNING: Invalid restart_interval. Reverting to 12.0.")
+        config["restart_interval"] = 12.0
+
+    return config
+
 def load_config():
     """Loads the server configuration from the JSON file."""
     default_config = {
@@ -40,6 +70,8 @@ def load_config():
         "enable_backups": True,
         "enable_discord": False,
         "discord_webhook": "",
+        "discord_token": "", # New for Bot
+        "discord_channel_id": 0, # New for Bot
         "enable_auto_restart": True,
         "enable_schedule": False,
         "restart_interval": 12,
@@ -52,10 +84,10 @@ def load_config():
             with open(CONFIG_FILE, "r") as f:
                 loaded = json.load(f)
                 default_config.update(loaded)
-                return default_config
         except Exception as e:
             print(f"Error loading config: {e}")
-    return default_config
+    
+    return validate_config(default_config)
 
 def save_config(config):
     """Saves the current configuration to the JSON file."""
@@ -79,14 +111,87 @@ class HytaleUpdaterCore:
         self.restart_timer = None
         self.monitor_thread = None
         self.start_time = None
+        self.discord_bot = None
+
+        if self.config.get("enable_discord", False) and HAS_DISCORD and self.config.get("discord_token"):
+             self.start_discord_bot()
 
     def log(self, message, tag=None):
+        # Fallback to standard logging callback
         self.log_callback(message, tag)
+        
+        # Also log to rich console if in console mode (detected by lack of GUI wrapper usually, 
+        # but here we can just check if console exists and we are likely running in a terminal)
+        if console and not tag: # Don't duplicate stream reads if they are passed to log_callback separately
+             # If the message doesn't have a timestamp, add one for console
+             if not message.startswith("["):
+                 ts = datetime.datetime.now().strftime("[%H:%M:%S]")
+                 console.log(f"{ts} {message}")
 
     def update_status(self, status):
         """Updates the status via the callback."""
         if self.status_callback:
             self.status_callback(status)
+
+    def start_discord_bot(self):
+        """Starts the Discord Bot in a separate thread."""
+        token = self.config.get("discord_token")
+        channel_id = self.config.get("discord_channel_id", 0)
+        
+        if not token: return
+
+        # Define Bot Class inline to access 'self' easily or pass reference
+        class HytaleBot(commands.Bot):
+            def __init__(self, manager_core):
+                super().__init__(command_prefix="!", intents=discord.Intents.default())
+                self.manager = manager_core
+            
+            async def on_ready(self):
+                print(f'Discord Bot logged in as {self.user}')
+                if channel_id:
+                    channel = self.get_channel(int(channel_id))
+                    if channel: await channel.send("🟢 **Hytale Manager Connected!**")
+
+        self.discord_bot = HytaleBot(self)
+
+        @self.discord_bot.command(name="status")
+        async def status(ctx):
+            if self.server_process:
+                await ctx.send(f"✅ Server is **Running** (PID: {self.server_process.pid})")
+            else:
+                await ctx.send("🔴 Server is **Stopped**")
+
+        @self.discord_bot.command(name="start")
+        async def start_server(ctx):
+            if self.server_process:
+                await ctx.send("Server is already running.")
+            else:
+                await ctx.send("🚀 Starting server...")
+                self.start_server_sequence()
+
+        @self.discord_bot.command(name="stop")
+        async def stop_server(ctx):
+            if self.server_process:
+                await ctx.send("🛑 Stopping server...")
+                self.stop_server()
+            else:
+                await ctx.send("Server is already stopped.")
+        
+        @self.discord_bot.command(name="restart")
+        async def restart_server(ctx):
+            await ctx.send("🔄 Restarting server...")
+            self.stop_server()
+            # Wait loop handled in thread or simple sleep here? 
+            # Ideally rely on the manager logic, but for simple bot:
+            threading.Timer(5.0, self.start_server_sequence).start()
+
+        def run_bot():
+            try:
+                self.discord_bot.run(token)
+            except Exception as e:
+                print(f"Discord Bot Error: {e}")
+
+        threading.Thread(target=run_bot, daemon=True).start()
 
     def check_java_version(self):
         """Verifies if Java 25 is installed and available."""
@@ -716,8 +821,14 @@ except Exception as e:
 def run_console_mode():
     """Runs the updater in console-only mode."""
     def console_logger(message, tag=None):
+        # Core log handles rich output if available. 
+        # This callback is primarily for file logging and fallback print.
         timestamp = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
-        print(f"{timestamp} {message}")
+        
+        # Only print if rich console is NOT active to avoid double printing
+        if not console:
+             print(f"{timestamp} {message}")
+        
         with open(LOG_FILE, "a") as f:
             f.write(f"{timestamp} {message}\n")
     
