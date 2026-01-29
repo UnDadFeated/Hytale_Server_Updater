@@ -622,6 +622,17 @@ except Exception as e:
                     if os.path.exists(p):
                         try: os.remove(p)
                         except: pass
+                
+                # Cleanup OLD zips (Prune cache)
+                # We want to keep ONLY the zip that matches remote_version (or the one we just installed)
+                if remote_version:
+                     for f in os.listdir(staging_dir):
+                         if f.endswith(".zip") and not f.startswith(remote_version) and "Assets" not in f:
+                             try:
+                                 self.log(f"Pruning old cached zip: {f}")
+                                 os.remove(os.path.join(staging_dir, f))
+                             except Exception as e:
+                                 self.log(f"Failed to prune {f}: {e}")
 
         except Exception as e:
             self.log(f"Update failed: {e}")
