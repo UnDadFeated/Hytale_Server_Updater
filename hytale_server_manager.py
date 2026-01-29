@@ -425,6 +425,15 @@ except Exception as e:
             for root in search_roots:
                 apply_replacements(root)
 
+            # Copy credentials if they exist
+            CREDENTIALS_FILE = ".hytale-downloader-credentials.json"
+            if os.path.exists(CREDENTIALS_FILE):
+                try:
+                    shutil.copy2(CREDENTIALS_FILE, os.path.join(staging_dir, CREDENTIALS_FILE))
+                    self.log(f"Copied {CREDENTIALS_FILE} to staging.")
+                except Exception as e:
+                    self.log(f"Failed to copy credentials: {e}")
+
             self.log(f"Running updater in: {staging_dir}...")
             
             # Run the downloader CLI
