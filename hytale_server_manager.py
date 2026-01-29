@@ -349,6 +349,81 @@ except Exception as e:
         subprocess.Popen([sys.executable, "updater_installer.py"])
         os._exit(0)
 
+    def _install_from_zip_or_folder(self, staging_dir, specific_zip=None):
+        """Helper to extract and install server files from a zip or folder in staging."""
+        extracted_root = os.path.join(staging_dir, "extracted")
+        if os.path.exists(extracted_root): shutil.rmtree(extracted_root)
+        
+        files_ready_to_copy = False
+        source_bases = []
+
+        if specific_zip:
+            self.log(f"Extracting {os.path.basename(specific_zip)}...")
+            try:
+                with zipfile.ZipFile(specific_zip, 'r') as zip_ref:
+                    zip_ref.extractall(extracted_root)
+                files_ready_to_copy = True
+                source_bases.append(extracted_root)
+                if os.path.exists(os.path.join(extracted_root, "Server")):
+                        source_bases.append(os.path.join(extracted_root, "Server"))
+            except Exception as e:
+                self.log(f"Failed to extract zip: {e}")
+                return False
+        else:
+            # Check for ANY zip if specific one not provided
+            potential_zips = [f for f in os.listdir(staging_dir) if f.endswith(".zip") and "Assets" not in f]
+            if potential_zips:
+                # Pick the most recent/likely one
+                target_zip = os.path.join(staging_dir, potential_zips[0])
+                self.log(f"Found server package: {target_zip}")
+                return self._install_from_zip_or_folder(staging_dir, target_zip)
+            
+            # Fallback to loose files
+            files_ready_to_copy = True
+            source_bases.append(staging_dir)
+            if os.path.exists(os.path.join(staging_dir, "Server")):
+                source_bases.append(os.path.join(staging_dir, "Server"))
+
+        any_replaced = False
+        if files_ready_to_copy:
+            # 1. Look for Assets.zip
+            for base in source_bases:
+                assets_src = os.path.join(base, ASSETS_FILE)
+                if os.path.exists(assets_src):
+                    try:
+                        dest = os.path.join(os.getcwd(), ASSETS_FILE)
+                        if os.path.exists(dest): os.remove(dest)
+                        shutil.copy2(assets_src, dest)
+                        self.log(f"Replaced {ASSETS_FILE} from {assets_src}")
+                        any_replaced = True
+                    except Exception as e: self.log(f"Error moving Assets.zip: {e}")
+                    break
+            
+            # 2. Look for Server components
+            server_components = [SERVER_JAR, AOT_FILE, "Licenses"]
+            for comp in server_components:
+                for base in source_bases:
+                    src = os.path.join(base, comp)
+                    if os.path.exists(src):
+                        try:
+                            dest = os.path.join(os.getcwd(), comp)
+                            if os.path.isdir(src):
+                                if os.path.exists(dest): shutil.rmtree(dest)
+                                shutil.copytree(src, dest)
+                            else:
+                                if os.path.exists(dest): os.remove(dest)
+                                shutil.copy2(src, dest)
+                            self.log(f"Replaced {comp} from {src}")
+                            any_replaced = True
+                        except Exception as e: self.log(f"Error moving {comp}: {e}")
+                        break
+
+        if not any_replaced:
+            self.log("WARNING: No files were replaced during install attempt.")
+            return False
+        
+        return True
+
     def update_server(self):
         """Handles the server update process using the Hytale downloader."""
         updater_cmd = self.ensure_updater()
@@ -378,166 +453,61 @@ except Exception as e:
             if not os.path.exists(staging_dir):
                 os.makedirs(staging_dir)
             
-            # Helper to perform replacement
-            def apply_replacements(root_path):
-                replacements = [SERVER_JAR, AOT_FILE, ASSETS_FILE, "Licenses"]
-                any_replaced = False
-                for item in replacements:
-                    src = os.path.join(root_path, item)
-                    dest = os.path.join(os.getcwd(), item)
-                    
-                    if os.path.exists(src):
-                        should_copy = False
-                        if not os.path.exists(dest):
-                            should_copy = True
-                            self.log(f"Missing {item}, installing from staging...")
-                        else:
-                            # Check size mismatch
-                            src_size = os.path.getsize(src) if os.path.isfile(src) else 0
-                            dest_size = os.path.getsize(dest) if os.path.isfile(dest) else 0
-                            if os.path.isfile(src) and src_size != dest_size:
-                                should_copy = True
-                                self.log(f"Size mismatch for {item} (Staged: {src_size}, Live: {dest_size}). Updating...")
-                            elif os.path.isdir(src):
-                                # For directories, just copytree usually (Licenses)
-                                should_copy = True
+            # PRE-CHECK: existing zip?
+            install_success = False
+            if remote_version:
+                # The CLI usually names zips by version, e.g. "2026.01.28-xxx.zip"
+                potential_matches = [f for f in os.listdir(staging_dir) if f.startswith(remote_version) and f.endswith(".zip")]
+                if potential_matches:
+                     cached_zip = os.path.join(staging_dir, potential_matches[0])
+                     self.log(f"Found existing cached zip: {cached_zip}. Attempting install...")
+                     if self._install_from_zip_or_folder(staging_dir, cached_zip):
+                         self.log("Install from cache successful! Skipping downloader.")
+                         install_success = True
 
-                        if should_copy:
-                            try:
-                                if os.path.isdir(src):
-                                    if os.path.exists(dest): shutil.rmtree(dest)
-                                    shutil.copytree(src, dest)
-                                else:
-                                    if os.path.exists(dest): os.remove(dest) # Ensure clean replace
-                                    shutil.copy2(src, dest)
-                                self.log(f"Updated {item} from staging.")
-                                any_replaced = True
-                            except Exception as e:
-                                self.log(f"Failed to update {item}: {e}")
-                return any_replaced
-
-            # 1. Pre-check: If staging exists, try to replace immediately if needed
-            # This handles the case where download finished but copy failed previously, OR skipping download
-            search_roots = [staging_dir]
-            if os.path.exists(os.path.join(staging_dir, "Server")):
-                 search_roots.append(os.path.join(staging_dir, "Server"))
-            
-            for root in search_roots:
-                apply_replacements(root)
-
-            # Copy credentials if they exist
-            CREDENTIALS_FILE = ".hytale-downloader-credentials.json"
-            if os.path.exists(CREDENTIALS_FILE):
-                try:
-                    shutil.copy2(CREDENTIALS_FILE, os.path.join(staging_dir, CREDENTIALS_FILE))
-                    self.log(f"Copied {CREDENTIALS_FILE} to staging.")
-                except Exception as e:
-                    self.log(f"Failed to copy credentials: {e}")
-
-            self.log(f"Running updater in: {staging_dir}...")
-            
-            # Run the downloader CLI
-            # We trust it to check remote vs local sizes in staging and skip if needed
-            process = subprocess.Popen(resolved_cmd, cwd=staging_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            for line in iter(process.stdout.readline, ''):
-                if line: self.log(f"[Updater] {line.strip()}")
-            process.wait()
-            
-            if process.returncode == 0:
-                self.log("Updater finished. Checking for downloaded files...")
-                
-                # Check for ZIP files if the jar wasn't automatically extracted
-                potential_zips = [f for f in os.listdir(staging_dir) if f.endswith(".zip") and "Assets" not in f] # Exclude Assets.zip if it happens to be there
-                
-                downloaded_zip = None
-                if potential_zips:
-                    # Pick the most recent or likely the right one. Usually there is only one server zip.
-                    downloaded_zip = os.path.join(staging_dir, potential_zips[0])
-                    self.log(f"Found server package: {downloaded_zip}")
-                
-                extracted_root = os.path.join(staging_dir, "extracted")
-                if os.path.exists(extracted_root): shutil.rmtree(extracted_root)
-                
-                files_ready_to_copy = False
-                source_bases = []
-
-                if downloaded_zip:
-                    self.log(f"Extracting {os.path.basename(downloaded_zip)}...")
+            if not install_success:
+                 # Copy credentials if they exist
+                CREDENTIALS_FILE = ".hytale-downloader-credentials.json"
+                if os.path.exists(CREDENTIALS_FILE):
                     try:
-                        with zipfile.ZipFile(downloaded_zip, 'r') as zip_ref:
-                            zip_ref.extractall(extracted_root)
-                        files_ready_to_copy = True
-                        source_bases.append(extracted_root)
-                        # Check inside "Server" folder in extracted too
-                        if os.path.exists(os.path.join(extracted_root, "Server")):
-                             source_bases.append(os.path.join(extracted_root, "Server"))
+                        shutil.copy2(CREDENTIALS_FILE, os.path.join(staging_dir, CREDENTIALS_FILE))
+                        self.log(f"Copied {CREDENTIALS_FILE} to staging.")
                     except Exception as e:
-                        self.log(f"Failed to extract zip: {e}")
+                        self.log(f"Failed to copy credentials: {e}")
+
+                self.log(f"Running updater in: {staging_dir}...")
+                
+                # Run the downloader CLI
+                process = subprocess.Popen(resolved_cmd, cwd=staging_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                for line in iter(process.stdout.readline, ''):
+                    if line: self.log(f"[Updater] {line.strip()}")
+                process.wait()
+                
+                if process.returncode == 0:
+                    self.log("Updater finished. Installing files...")
+                    if self._install_from_zip_or_folder(staging_dir):
+                        install_success = True
+                    else:
+                         self.log("WARNING: Downloader finished but install helper failed.")
                 else:
-                    # Maybe it's already loose files?
-                    files_ready_to_copy = True
-                    source_bases.append(staging_dir)
-                    if os.path.exists(os.path.join(staging_dir, "Server")):
-                        source_bases.append(os.path.join(staging_dir, "Server"))
+                     self.log(f"Updater exited with code {process.returncode}")
 
-                any_replaced = False
-                if files_ready_to_copy:
-                    # Manually handle specific moves based on user description
-                    # Assets.zip is in root of zip
-                    # Server jars are in Server/ folder of zip
-                    
-                    # 1. Look for Assets.zip (Root usually)
-                    for base in source_bases:
-                        assets_src = os.path.join(base, ASSETS_FILE)
-                        if os.path.exists(assets_src):
-                            try:
-                                dest = os.path.join(os.getcwd(), ASSETS_FILE)
-                                if os.path.exists(dest): os.remove(dest)
-                                shutil.copy2(assets_src, dest)
-                                self.log(f"Replaced {ASSETS_FILE} from {assets_src}")
-                                any_replaced = True
-                            except Exception as e: self.log(f"Error moving Assets.zip: {e}")
-                            break # Found it
-                    
-                    # 2. Look for Server components (Likely in Server/ subdir, but check both)
-                    server_components = [SERVER_JAR, AOT_FILE, "Licenses"]
-                    for comp in server_components:
-                         for base in source_bases:
-                            src = os.path.join(base, comp)
-                            if os.path.exists(src):
-                                try:
-                                    dest = os.path.join(os.getcwd(), comp)
-                                    if os.path.isdir(src):
-                                        if os.path.exists(dest): shutil.rmtree(dest)
-                                        shutil.copytree(src, dest)
-                                    else:
-                                        if os.path.exists(dest): os.remove(dest)
-                                        shutil.copy2(src, dest)
-                                    self.log(f"Replaced {comp} from {src}")
-                                    any_replaced = True
-                                except Exception as e: self.log(f"Error moving {comp}: {e}")
-                                break # Found it
-
-                if not any_replaced:
-                    self.log("WARNING: No files were replaced! Structure might be unexpected.")
-                else:
-                    self.log("Update application successful.")
-                    # SUCCESS: Clean up staging
-                    try:
-                        self.log("Cleaning up staging directory...")
-                        shutil.rmtree(staging_dir)
-                    except Exception as e:
-                        self.log(f"Failed to cleanup staging: {e}")
-
+            if install_success:
+                self.log("Update application successful.")
+                
                 if remote_version and remote_version != local_version:
                      self.config["last_server_version"] = remote_version
                      save_config(self.config)
                      self.log(f"Updated local version record to {remote_version}")
 
-            else:
-                 self.log(f"Updater exited with code {process.returncode}")
+                # SUCCESS: Clean up staging
+                try:
+                    self.log("Cleaning up staging directory...")
+                    shutil.rmtree(staging_dir)
+                except Exception as e:
+                    self.log(f"Failed to cleanup staging: {e}")
             
-            # Cleanup artifacts only (if staging still exists)
+            # Cleanup artifacts only (if staging still exists - e.g. failed install)
             if os.path.exists(staging_dir):
                 artifacts = ["QUICKSTART.md", "hytale-downloader-windows-amd64.exe", "hytale-downloader-linux-amd64", "hytale-downloader"]
                 for f in artifacts:

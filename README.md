@@ -69,5 +69,5 @@ Settings are saved to `hytale_server_manager_config.json`. Key features:
 
 ## Versioning
 
-Current Version: 3.0.0
+Current Version: 3.0.1
 See `version.py` for the tracked version number.
