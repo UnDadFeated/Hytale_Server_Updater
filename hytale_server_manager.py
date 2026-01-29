@@ -605,14 +605,16 @@ except Exception as e:
                      save_config(self.config)
                      self.log(f"Updated local version record to {remote_version}")
 
-                # SUCCESS: Clean up staging
+                # SUCCESS: Clean up extracted files only - KEEP THE ZIP for future verification
                 try:
-                    self.log("Cleaning up staging directory...")
-                    shutil.rmtree(staging_dir)
+                    self.log("Cleaning up extracted staging files...")
+                    extracted_root = os.path.join(staging_dir, "extracted")
+                    if os.path.exists(extracted_root):
+                        shutil.rmtree(extracted_root)
                 except Exception as e:
                     self.log(f"Failed to cleanup staging: {e}")
             
-            # Cleanup artifacts only (if staging still exists - e.g. failed install)
+            # Cleanup artifacts only but KEEP zips
             if os.path.exists(staging_dir):
                 artifacts = ["QUICKSTART.md", "hytale-downloader-windows-amd64.exe", "hytale-downloader-linux-amd64", "hytale-downloader"]
                 for f in artifacts:
