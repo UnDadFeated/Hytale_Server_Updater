@@ -365,62 +365,94 @@ except Exception as e:
         if remote_version:
             self.log(f"Remote version: {remote_version}")
             if remote_version == local_version:
-                self.log(f"Server is up to date (Version {local_version}). Skipping download.")
-                return
+                self.log(f"Config ver matches remote ({remote_version}). Checking file integrity...")
             else:
-                self.log(f"New version available (Old: {local_version}, New: {remote_version}). Downloading...")
+                self.log(f"New version available (Old: {local_version}, New: {remote_version}).")
         else:
             self.log("Could not determine remote version. Forcing update check...")
 
         try:
             staging_dir = os.path.abspath("updater_staging")
-            if os.path.exists(staging_dir): shutil.rmtree(staging_dir)
-            os.makedirs(staging_dir)
+            if not os.path.exists(staging_dir):
+                os.makedirs(staging_dir)
             
-            self.log(f"Downloading update to staging: {staging_dir}...")
+            # Helper to perform replacement
+            def apply_replacements(root_path):
+                replacements = [SERVER_JAR, AOT_FILE, ASSETS_FILE, "Licenses"]
+                any_replaced = False
+                for item in replacements:
+                    src = os.path.join(root_path, item)
+                    dest = os.path.join(os.getcwd(), item)
+                    
+                    if os.path.exists(src):
+                        should_copy = False
+                        if not os.path.exists(dest):
+                            should_copy = True
+                            self.log(f"Missing {item}, installing from staging...")
+                        else:
+                            # Check size mismatch
+                            src_size = os.path.getsize(src) if os.path.isfile(src) else 0
+                            dest_size = os.path.getsize(dest) if os.path.isfile(dest) else 0
+                            if os.path.isfile(src) and src_size != dest_size:
+                                should_copy = True
+                                self.log(f"Size mismatch for {item} (Staged: {src_size}, Live: {dest_size}). Updating...")
+                            elif os.path.isdir(src):
+                                # For directories, just copytree usually (Licenses)
+                                should_copy = True
+
+                        if should_copy:
+                            try:
+                                if os.path.isdir(src):
+                                    if os.path.exists(dest): shutil.rmtree(dest)
+                                    shutil.copytree(src, dest)
+                                else:
+                                    if os.path.exists(dest): os.remove(dest) # Ensure clean replace
+                                    shutil.copy2(src, dest)
+                                self.log(f"Updated {item} from staging.")
+                                any_replaced = True
+                            except Exception as e:
+                                self.log(f"Failed to update {item}: {e}")
+                return any_replaced
+
+            # 1. Pre-check: If staging exists, try to replace immediately if needed
+            # This handles the case where download finished but copy failed previously, OR skipping download
+            search_roots = [staging_dir]
+            if os.path.exists(os.path.join(staging_dir, "Server")):
+                 search_roots.append(os.path.join(staging_dir, "Server"))
             
+            for root in search_roots:
+                apply_replacements(root)
+
+            self.log(f"Running updater in: {staging_dir}...")
+            
+            # Run the downloader CLI
+            # We trust it to check remote vs local sizes in staging and skip if needed
             process = subprocess.Popen(resolved_cmd, cwd=staging_dir, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             for line in iter(process.stdout.readline, ''):
                 if line: self.log(f"[Updater] {line.strip()}")
             process.wait()
             
             if process.returncode == 0:
-                self.log("Update download complete. Applying files...")
+                self.log("Updater finished. Verifying files...")
                 
+                # Update search roots in case new folders appeared
                 search_roots = [staging_dir]
                 if os.path.exists(os.path.join(staging_dir, "Server")):
                     search_roots.append(os.path.join(staging_dir, "Server"))
-                
+
+                # 2. Post-Update: Apply changes again
                 found_server = False
-                
                 for root_path in search_roots:
                     jar_path = os.path.join(root_path, SERVER_JAR)
                     if os.path.exists(jar_path):
                         found_server = True
-                        
-                        replacements = [SERVER_JAR, AOT_FILE, ASSETS_FILE, "Licenses"]
-                        for item in replacements:
-                            src = os.path.join(root_path, item)
-                            if os.path.exists(src):
-                                dest = os.path.join(os.getcwd(), item)
-                                try:
-                                    if os.path.isdir(src):
-                                        if os.path.exists(dest): shutil.rmtree(dest)
-                                        shutil.copytree(src, dest)
-                                    else:
-                                        shutil.copy2(src, dest)
-                                    self.log(f"Updated {item} from {src}")
-                                except Exception as e:
-                                    self.log(f"Failed to update {item}: {e}")
-                            else:
-                                if item == ASSETS_FILE:
-                                    self.log(f"WARNING: New {ASSETS_FILE} not found in update.")
+                        apply_replacements(root_path)
                         break
                 
                 if not found_server:
                     self.log("WARNING: Updated HytaleServer.jar not found in staging!")
 
-                if remote_version:
+                if remote_version and remote_version != local_version:
                      self.config["last_server_version"] = remote_version
                      save_config(self.config)
                      self.log(f"Updated local version record to {remote_version}")
@@ -428,28 +460,17 @@ except Exception as e:
             else:
                  self.log(f"Updater exited with code {process.returncode}")
             
-            if os.path.exists(staging_dir): 
-                 try: 
-                     shutil.rmtree(staging_dir)
-                     self.log(f"Cleaned up staging: {staging_dir}")
-                 except Exception as e:
-                     self.log(f"Failed to clean staging: {e}")
-
+            # Cleanup artifacts only
             artifacts = ["QUICKSTART.md", "hytale-downloader-windows-amd64.exe", "hytale-downloader-linux-amd64", "hytale-downloader"]
             for f in artifacts:
-                if os.path.exists(f):
-                    try: 
-                        os.remove(f)
+                p = os.path.join(staging_dir, f)
+                if os.path.exists(p):
+                    try: os.remove(p)
                     except: pass
 
         except Exception as e:
             self.log(f"Update failed: {e}")
             self.log(traceback.format_exc())
-            if os.path.exists(staging_dir): 
-                 try: 
-                     shutil.rmtree(staging_dir)
-                 except Exception as e:
-                     self.log(f"Failed to clean staging after error: {e}")
 
     def send_command(self, command):
         """Sends a console command to the running server process."""
