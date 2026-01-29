@@ -583,17 +583,25 @@ except Exception as e:
         """Internal method to handle the server startup steps."""
         self.stop_requested = False
         
+        # 1. Manager Update Check
+        self.check_self_update()
+
+        # 2. Java Check
         if not self.check_java_version(): return
 
+        # 3. Server Check (and Downloader)
+        if self.config.get("check_updates", True):
+            self.stop_existing_server_process() # Stop before update to be safe
+            self.update_server()
+
+        # 4. Assets Check
         assets_path = self.check_assets()
         if not assets_path: return
 
+        # Ensure server is stopped before start (redundant but safe if updates disabled)
         self.stop_existing_server_process()
 
-        self.check_self_update()
-        if self.config.get("check_updates", True):
-            self.update_server()
-
+        # 5. Backup World
         self.backup_world()
 
         self.log("Starting Server...")
