@@ -244,8 +244,10 @@ class HytaleUpdaterCore:
         if not self.config.get("manager_auto_update", True):
              return
 
-        VERSION_URL = "https://raw.githubusercontent.com/UnDadFeated/Hytale_Server_Manager/master/version.py"
-        MANAGER_URL = "https://raw.githubusercontent.com/UnDadFeated/Hytale_Server_Manager/master/hytale_server_manager.py"
+        # Add cache buster
+        ts = int(time.time())
+        VERSION_URL = f"https://raw.githubusercontent.com/UnDadFeated/Hytale_Server_Manager/master/version.py?t={ts}"
+        MANAGER_URL = f"https://raw.githubusercontent.com/UnDadFeated/Hytale_Server_Manager/master/hytale_server_manager.py?t={ts}"
         
         try:
             req = urllib.request.Request(VERSION_URL, headers={'User-Agent': 'HytaleManagerUpdater'})
