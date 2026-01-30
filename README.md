@@ -11,6 +11,7 @@ A Python automation script for managing Dedicated Hytale Servers.
 *   **Reliable Auto-Updates**: Checks `git master` via HTTP to automatically download and install updates using a safe installer script.
 *   **Performance**: Detects and enables Ahead-Of-Time (`HytaleServer.aot`) cache for faster startups.
 *   **Notifications**: Integrated Discord Webhooks for server status changes (Start, Stop, Crash).
+*   **Background Scanning**: Automatically checks for server updates every 30 minutes and restarts if found.
 *   **Platform Checks**: auto-detects Java 25 and `Assets.zip` requirements.
 
 ## Requirements
@@ -69,5 +70,5 @@ Settings are saved to `hytale_server_manager_config.json`. Key features:
 
 ## Versioning
 
-Current Version: 3.1.3
+Current Version: 3.2.0
 See `version.py` for the tracked version number.

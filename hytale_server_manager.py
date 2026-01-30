@@ -109,6 +109,7 @@ class HytaleUpdaterCore:
         self.server_process = None
         self.stop_requested = False
         self.restart_timer = None
+        self.update_timer = None
         self.monitor_thread = None
         self.start_time = None
         self.discord_bot = None
@@ -786,6 +787,8 @@ except Exception as e:
             self.monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True)
             self.monitor_thread.start()
             
+            self.start_update_checker()
+
             if self.config.get("enable_schedule", False):
                 self._schedule_restart()
 
@@ -831,11 +834,67 @@ except Exception as e:
              time.sleep(10)
              self.start_server_sequence()
 
+    def start_update_checker(self):
+        """Starts the background update checker."""
+        # 30 minutes = 1800 seconds
+        interval = 1800
+        self.log(f"Starting background update checker (every {interval}s).")
+        
+        def update_task():
+            if self.stop_requested or not self.server_process: return
+            self._run_background_update_check()
+            # Reschedule if still running
+            if not self.stop_requested and self.server_process:
+                self.update_timer = threading.Timer(interval, update_task)
+                self.update_timer.daemon = True
+                self.update_timer.start()
+
+        # Start first timer
+        self.update_timer = threading.Timer(interval, update_task)
+        self.update_timer.daemon = True
+        self.update_timer.start()
+
+    def _run_background_update_check(self):
+        """Checks for updates in the background and restarts if found."""
+        try:
+            updater_cmd = self.ensure_updater()
+            if not updater_cmd: return
+
+            resolved_cmd = self.resolve_command_path(updater_cmd)
+            remote_version = self.get_remote_server_version(resolved_cmd)
+            local_version = self.config.get("last_server_version", "0.0.0")
+
+            if remote_version:
+                if remote_version != local_version:
+                     self.log(f"Background Check: New version found ({remote_version}). Restarting to update...")
+                     self.send_discord_webhook(f"🚀 New update found ({remote_version})! Restarting server...")
+                     self.restart_server()
+                else:
+                     self.log(f"Background Check: Server is up to date ({local_version}).")
+            else:
+                self.log("Background Check: Could not determine remote version.")
+
+        except Exception as e:
+            self.log(f"Background update check failed: {e}")
+
+    def restart_server(self):
+        """Restarts the server cleanly."""
+        self.log("Restarting server...")
+        self.stop_server()
+        
+        def delayed_start():
+            time.sleep(5) 
+            self.start_server_sequence()
+            
+        threading.Thread(target=delayed_start, daemon=True).start()
+
     def stop_server(self):
         """Stops the running server process."""
         self.stop_requested = True
         if self.restart_timer:
             self.restart_timer.cancel()
+        if self.update_timer:
+            self.update_timer.cancel()
 
         if self.server_process:
             self.log("Stopping server...")
