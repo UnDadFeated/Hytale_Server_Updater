@@ -993,6 +993,8 @@ def run_gui_mode():
             self.var_restart = tk.BooleanVar(value=self.config.get("enable_auto_restart", True))
             self.var_schedule = tk.BooleanVar(value=self.config.get("enable_schedule", False))
             self.var_discord_url = tk.StringVar(value=self.config.get("discord_webhook", ""))
+            self.var_discord_token = tk.StringVar(value=self.config.get("discord_token", ""))
+            self.var_discord_channel = tk.StringVar(value=str(self.config.get("discord_channel_id", 0)))
             self.var_schedule_time = tk.StringVar(value=str(self.config.get("restart_interval", 12)))
             self.var_memory = tk.StringVar(value=self.config.get("server_memory", "8G"))
             self.var_max_backups = tk.StringVar(value=str(self.config.get("max_backups", 3)))
@@ -1037,6 +1039,12 @@ def run_gui_mode():
             ttk.Checkbutton(c_col1, text="Enable File Logging", variable=self.var_logging, command=self.save).pack(anchor="w")
             ttk.Checkbutton(c_col1, text="Auto-Start Server", variable=self.var_autostart, command=self.save).pack(anchor="w")
             ttk.Checkbutton(c_col1, text="Auto-Restart on Crash", variable=self.var_restart, command=self.save).pack(anchor="w")
+
+            mem_frame = ttk.Frame(c_col1)
+            mem_frame.pack(anchor="w", pady=2)
+            ttk.Label(mem_frame, text="Server RAM:").pack(side=tk.LEFT)
+            ttk.Entry(mem_frame, textvariable=self.var_memory, width=6).pack(side=tk.LEFT, padx=5)
+            self.lbl_reboot = ttk.Label(mem_frame, text="⚠ Reboot Required", foreground="orange")
             
             c_col2 = ttk.Frame(options_row)
             c_col2.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
@@ -1050,24 +1058,24 @@ def run_gui_mode():
             ttk.Label(bkp_frame, text="Max:").pack(side=tk.LEFT, padx=(5,2))
             ttk.Entry(bkp_frame, textvariable=self.var_max_backups, width=3).pack(side=tk.LEFT)
 
+            sch_frame = ttk.Frame(c_col2)
+            sch_frame.pack(anchor="w", pady=2)
+            ttk.Checkbutton(sch_frame, text="Schedule Restart (Hrs)", variable=self.var_schedule, command=self.save).pack(side=tk.LEFT)
+            ttk.Entry(sch_frame, textvariable=self.var_schedule_time, width=5).pack(side=tk.LEFT, padx=5)
+
             c_col3_center = ttk.Frame(options_row)
             c_col3_center.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
             dsc_frame = ttk.Frame(c_col3_center)
             dsc_frame.pack(anchor="w", pady=2)
-            ttk.Checkbutton(dsc_frame, text="Discord Webhook", variable=self.var_discord, command=self.save).pack(side=tk.LEFT)
-            ttk.Entry(dsc_frame, textvariable=self.var_discord_url, width=20).pack(side=tk.LEFT, padx=5)
+            ttk.Checkbutton(dsc_frame, text="Discord Webhook", variable=self.var_discord, command=self.save).pack(anchor="w")
+            ttk.Entry(dsc_frame, textvariable=self.var_discord_url, width=25).pack(anchor="w", pady=(0, 5))
             
-            sch_frame = ttk.Frame(c_col3_center)
-            sch_frame.pack(anchor="w", pady=2)
-            ttk.Checkbutton(sch_frame, text="Schedule Restart (Hrs)", variable=self.var_schedule, command=self.save).pack(side=tk.LEFT)
-            ttk.Entry(sch_frame, textvariable=self.var_schedule_time, width=5).pack(side=tk.LEFT, padx=5)
+            ttk.Label(dsc_frame, text="Bot Token:").pack(anchor="w")
+            ttk.Entry(dsc_frame, textvariable=self.var_discord_token, width=25, show="*").pack(anchor="w")
             
-            mem_frame = ttk.Frame(c_col3_center)
-            mem_frame.pack(anchor="w", pady=2)
-            ttk.Label(mem_frame, text="Server RAM:").pack(side=tk.LEFT)
-            ttk.Entry(mem_frame, textvariable=self.var_memory, width=6).pack(side=tk.LEFT, padx=5)
-            self.lbl_reboot = ttk.Label(mem_frame, text="⚠ Reboot Required", foreground="orange")
+            ttk.Label(dsc_frame, text="Channel ID:").pack(anchor="w")
+            ttk.Entry(dsc_frame, textvariable=self.var_discord_channel, width=25).pack(anchor="w")
 
             c_col3 = ttk.Frame(controls_frame)
             c_col3.pack(side=tk.RIGHT, fill=tk.Y)
@@ -1167,10 +1175,9 @@ def run_gui_mode():
                 "enable_auto_restart": self.var_restart.get(),
                 "enable_schedule": self.var_schedule.get(),
                 "discord_webhook": self.var_discord_url.get(),
+                "discord_token": self.var_discord_token.get(),
+                "discord_channel_id": int(self.var_discord_channel.get()) if self.var_discord_channel.get().isdigit() else 0,
                 "restart_interval": self.var_schedule_time.get(),
-                "discord_webhook": self.var_discord_url.get(),
-                "restart_interval": self.var_schedule_time.get(),
-                "server_memory": self.var_memory.get(),
                 "server_memory": self.var_memory.get(),
                 "max_backups": int(self.var_max_backups.get()) if self.var_max_backups.get().isdigit() else 3,
                 "manager_auto_update": self.var_mgr_update.get()
