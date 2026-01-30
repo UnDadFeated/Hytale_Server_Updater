@@ -239,9 +239,20 @@ class HytaleUpdaterCore:
 
     def ensure_updater(self):
         """Ensures the Hytale updater executable is available."""
-        if os.path.exists(UPDATER_EXECUTABLE):
-            return [f"./{UPDATER_EXECUTABLE}"] if not IS_WINDOWS else [UPDATER_EXECUTABLE]
-        
+        # Check for standard executable name or platform specific names
+        candidates = [UPDATER_EXECUTABLE]
+        if IS_WINDOWS:
+            candidates.append("hytale-downloader-windows-amd64.exe")
+        else:
+            candidates.append("hytale-downloader-linux-amd64")
+            
+        for cand in candidates:
+            if os.path.exists(cand):
+                 if not IS_WINDOWS and not os.access(cand, os.X_OK):
+                     try: os.chmod(cand, 0o755)
+                     except: pass
+                 return [f"./{cand}"] if not IS_WINDOWS else [cand]
+
         if os.path.exists("hytale-downloader.jar"):
             return ["java", "-jar", "hytale-downloader.jar"]
 
@@ -279,10 +290,15 @@ class HytaleUpdaterCore:
             with zipfile.ZipFile(UPDATER_ZIP_FILE, 'r') as zip_ref:
                 zip_ref.extractall(".")
             
-            if os.path.exists(UPDATER_EXECUTABLE):
-                if not IS_WINDOWS: os.chmod(UPDATER_EXECUTABLE, 0o755)
-                return [f"./{UPDATER_EXECUTABLE}"] if not IS_WINDOWS else [UPDATER_EXECUTABLE]
+            # Re-check for candidates after extraction
+            for cand in candidates:
+                if os.path.exists(cand):
+                    if not IS_WINDOWS and not os.access(cand, os.X_OK):
+                        try: os.chmod(cand, 0o755)
+                        except: pass
+                    return [f"./{cand}"] if not IS_WINDOWS else [cand]
             
+            # Fallback scan
             for f in os.listdir('.'):
                 if "hytale-downloader" in f:
                     if f.endswith(".jar"): return ["java", "-jar", f]
@@ -866,13 +882,13 @@ except Exception as e:
 
             if remote_version:
                 if remote_version != local_version:
-                     self.log(f"Background Check: New version found ({remote_version}). Restarting to update...")
+                     self.log(f"[Background Check] New version found ({remote_version}). Restarting to update...")
                      self.send_discord_webhook(f"🚀 New update found ({remote_version})! Restarting server...")
                      self.restart_server()
                 else:
-                     self.log(f"Background Check: Server is up to date ({local_version}).")
+                     self.log(f"[Background Check] Server is up to date ({local_version}).")
             else:
-                self.log("Background Check: Could not determine remote version.")
+                self.log("[Background Check] Could not determine remote version.")
 
         except Exception as e:
             self.log(f"Background update check failed: {e}")
