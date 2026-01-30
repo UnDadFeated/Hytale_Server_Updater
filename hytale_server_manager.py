@@ -1066,11 +1066,10 @@ def run_gui_mode():
             c_col3_center = ttk.Frame(options_row)
             c_col3_center.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-            ttk.Checkbutton(c_col3_center, text="Discord Integration", variable=self.var_discord, command=self.save).pack(anchor="w", pady=(2, 0))
-
-            dsc_frame = ttk.LabelFrame(c_col3_center, text="Discord Settings", padding=5)
+            dsc_frame = ttk.LabelFrame(c_col3_center, text="", padding=5)
             dsc_frame.pack(anchor="w", pady=2, fill=tk.X)
 
+            ttk.Checkbutton(dsc_frame, text="Discord Integration", variable=self.var_discord, command=self.save).pack(anchor="w", pady=(0, 5))
 
             def add_dsc_row(label_text, var, is_secure=False):
                 row = ttk.Frame(dsc_frame)
