@@ -245,7 +245,7 @@ class HytaleUpdaterCore:
         if os.path.exists("hytale-downloader.jar"):
             return ["java", "-jar", "hytale-downloader.jar"]
 
-        self.log(f"Updater not found or checking for cache. Target: {UPDATER_ZIP_FILE}")
+        self.log(f"Updater executable not found. Checking for cached zip: {UPDATER_ZIP_FILE}...")
         
         should_download = True
         if os.path.exists(UPDATER_ZIP_FILE):
@@ -265,7 +265,7 @@ class HytaleUpdaterCore:
                  self.log(f"Error checking remote size: {e}. forcing download.")
 
         if should_download:
-            self.log(f"Downloading updater from {UPDATER_ZIP_URL}...")
+            self.log(f"Updater not found in cache or invalid. Downloading from {UPDATER_ZIP_URL}...")
             try:
                 req = urllib.request.Request(UPDATER_ZIP_URL, headers={'User-Agent': 'Mozilla/5.0'})
                 with urllib.request.urlopen(req) as response:
