@@ -121,9 +121,8 @@ class HytaleUpdaterCore:
         # Fallback to standard logging callback
         self.log_callback(message, tag)
         
-        # Also log to rich console if in console mode (detected by lack of GUI wrapper usually, 
-        # but here we can just check if console exists and we are likely running in a terminal)
-        if console and not tag: # Don't duplicate stream reads if they are passed to log_callback separately
+        # Also log to rich console if in console mode
+        if console and not tag:
              # If the message doesn't have a timestamp, add one for console
              if not message.startswith("["):
                  ts = datetime.datetime.now().strftime("[%H:%M:%S]")
@@ -141,7 +140,7 @@ class HytaleUpdaterCore:
         
         if not token: return
 
-        # Define Bot Class inline to access 'self' easily or pass reference
+        # Define Bot Class inline to access manager instance
         class HytaleBot(commands.Bot):
             def __init__(self, manager_core):
                 super().__init__(command_prefix="!", intents=discord.Intents.default())
@@ -182,8 +181,7 @@ class HytaleUpdaterCore:
         async def restart_server(ctx):
             await ctx.send("🔄 Restarting server...")
             self.stop_server()
-            # Wait loop handled in thread or simple sleep here? 
-            # Ideally rely on the manager logic, but for simple bot:
+            # specific restart logic for the bot
             threading.Timer(5.0, self.start_server_sequence).start()
 
         def run_bot():
@@ -852,6 +850,10 @@ except Exception as e:
 
     def start_update_checker(self):
         """Starts the background update checker."""
+        if not self.config.get("check_updates", True):
+            self.log("Background update check disabled by config.")
+            return
+
         # 30 minutes = 1800 seconds
         interval = 1800
         self.log(f"Starting background update checker (every {interval}s).")
@@ -1039,7 +1041,7 @@ def run_gui_mode():
             c_col2 = ttk.Frame(options_row)
             c_col2.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 20))
             
-            ttk.Checkbutton(c_col2, text="Check for new server updates at start", variable=self.var_check_upd, command=self.save).pack(anchor="w")
+            ttk.Checkbutton(c_col2, text="Check for new server updates", variable=self.var_check_upd, command=self.save).pack(anchor="w")
             ttk.Label(c_col2, text="(Uncheck if modded)", font=("Segoe UI", 8), foreground="gray").pack(anchor="w", padx=(20, 0))
             
             bkp_frame = ttk.Frame(c_col2)
