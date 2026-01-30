@@ -1066,7 +1066,7 @@ def run_gui_mode():
             c_col3_center = ttk.Frame(options_row)
             c_col3_center.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-            dsc_frame = ttk.LabelFrame(c_col3_center, text="", padding=5)
+            dsc_frame = ttk.Frame(c_col3_center, padding=5, borderwidth=1, relief="solid")
             dsc_frame.pack(anchor="w", pady=2, fill=tk.X)
 
             ttk.Checkbutton(dsc_frame, text="Discord Integration", variable=self.var_discord, command=self.save).pack(anchor="w", pady=(0, 5))
