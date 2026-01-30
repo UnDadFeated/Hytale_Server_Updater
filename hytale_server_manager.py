@@ -1066,16 +1066,21 @@ def run_gui_mode():
             c_col3_center = ttk.Frame(options_row)
             c_col3_center.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-            dsc_frame = ttk.Frame(c_col3_center)
-            dsc_frame.pack(anchor="w", pady=2)
-            ttk.Checkbutton(dsc_frame, text="Discord Webhook", variable=self.var_discord, command=self.save).pack(anchor="w")
-            ttk.Entry(dsc_frame, textvariable=self.var_discord_url, width=25).pack(anchor="w", pady=(0, 5))
+            dsc_frame = ttk.LabelFrame(c_col3_center, text="Discord Settings", padding=5)
+            dsc_frame.pack(anchor="w", pady=2, fill=tk.X)
             
-            ttk.Label(dsc_frame, text="Bot Token:").pack(anchor="w")
-            ttk.Entry(dsc_frame, textvariable=self.var_discord_token, width=25, show="*").pack(anchor="w")
-            
-            ttk.Label(dsc_frame, text="Channel ID:").pack(anchor="w")
-            ttk.Entry(dsc_frame, textvariable=self.var_discord_channel, width=25).pack(anchor="w")
+            ttk.Checkbutton(dsc_frame, text="Enable Integration", variable=self.var_discord, command=self.save).pack(anchor="w", pady=(0, 5))
+
+            def add_dsc_row(label_text, var, is_secure=False):
+                row = ttk.Frame(dsc_frame)
+                row.pack(fill=tk.X, pady=1)
+                ttk.Label(row, text=label_text, width=10).pack(side=tk.LEFT)
+                entry = ttk.Entry(row, textvariable=var, width=18, show="*" if is_secure else None)
+                entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+            add_dsc_row("Webhook:", self.var_discord_url)
+            add_dsc_row("Token:", self.var_discord_token, is_secure=True)
+            add_dsc_row("Channel:", self.var_discord_channel)
 
             c_col3 = ttk.Frame(controls_frame)
             c_col3.pack(side=tk.RIGHT, fill=tk.Y)
